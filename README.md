@@ -10,6 +10,7 @@ The focus is on a clean architecture, performance and resilience backed by measu
 
 | Path | Content |
 |---|---|
+| `app/` | Spring Boot application |
 | `similarProducts.yaml` | Contract of the API to implement |
 | `existingApis.yaml` | Contract of the existing APIs the service consumes |
 | `docker-compose.yaml`, `shared/` | Test infrastructure: mocks (simulado), k6, InfluxDB and Grafana |
@@ -17,6 +18,17 @@ The focus is on a clean architecture, performance and resilience backed by measu
 | `docs/adr/` | [Architecture decision records](docs/adr/README.md) |
 
 Files from the original statement are kept unchanged, so the load test runs against them as is.
+
+## Running the application
+
+Requires JDK 25.
+
+```bash
+cd app
+./mvnw spring-boot:run
+```
+
+The API listens on <http://localhost:5000>, with its health check at <http://localhost:5000/actuator/health>. To build and run the tests, use `./mvnw verify`.
 
 ## Running the test infrastructure
 
