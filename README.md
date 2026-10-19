@@ -17,6 +17,7 @@ The focus is on a clean architecture, performance and resilience backed by measu
 | `existingApis.yaml` | Contract of the existing APIs the service consumes |
 | `docker-compose.yaml`, `shared/` | Test infrastructure: mocks (simulado), k6, InfluxDB and Grafana |
 | `docs/statement.md` | Original statement |
+| `docs/performance.md` | [Load test results](docs/performance.md) at each stage |
 | `docs/adr/` | [Architecture decision records](docs/adr/README.md) |
 
 Files from the original statement are kept unchanged, so the load test runs against them as is.
