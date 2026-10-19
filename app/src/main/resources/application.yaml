@@ -7,6 +7,9 @@ spring:
         base-url: http://localhost:3001
         connect-timeout: 1s
         read-timeout: 2s
+  mvc:
+    problemdetails:
+      enabled: true
 
 server:
   port: 5000

@@ -32,6 +32,19 @@ cd app
 
 The API listens on <http://localhost:5000>, with its health check at <http://localhost:5000/actuator/health>. It reads products from the existing APIs, which the mocks serve on port 3001 (see below). To build and run the tests, use `./mvnw verify`.
 
+## API
+
+`GET /product/{productId}/similar` returns the detail of the products similar to the given one, ordered by similarity, as agreed in [`similarProducts.yaml`](similarProducts.yaml). Errors are [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) problem details.
+
+| Situation | Response |
+|---|---|
+| The product exists | 200 with its similar products. Those whose detail cannot be retrieved (404, error or timeout) are left out, and repeated ids are returned once |
+| The product does not exist | 404 |
+| The product id is not 1 to 64 letters, digits, `-` or `_` | 400 |
+| The similar ids cannot be retrieved | 500 |
+
+The reasons behind these rules are in [ADR 0004](docs/adr/0004-similar-products-business-rules.md).
+
 ## Configuration
 
 | Property | Default | Description |
