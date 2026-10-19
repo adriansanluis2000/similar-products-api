@@ -1,11 +1,13 @@
-# Backend dev technical test
-We want to offer a new feature to our customers showing similar products to the one they are currently seeing. To do this we agreed with our front-end applications to create a new REST API operation that will provide them the product detail of the similar products for a given one. [Here](./similarProducts.yaml) is the contract we agreed.
+> Original statement from [dalogax/backendDevTest](https://github.com/dalogax/backendDevTest) (Apache-2.0), moved here from `readme.md`. Only the relative links were changed so they work from `docs/`.
 
-We already have an endpoint that provides the product Ids similar for a given one. We also have another endpoint that returns the product detail by product Id. [Here](./existingApis.yaml) is the documentation of the existing APIs.
+# Backend dev technical test
+We want to offer a new feature to our customers showing similar products to the one they are currently seeing. To do this we agreed with our front-end applications to create a new REST API operation that will provide them the product detail of the similar products for a given one. [Here](../similarProducts.yaml) is the contract we agreed.
+
+We already have an endpoint that provides the product Ids similar for a given one. We also have another endpoint that returns the product detail by product Id. [Here](../existingApis.yaml) is the documentation of the existing APIs.
 
 **Create a Spring boot application that exposes the agreed REST API on port 5000.**
 
-![Diagram](./assets/diagram.jpg "Diagram")
+![Diagram](../assets/diagram.jpg "Diagram")
 
 Note that _Test_ and _Mocks_ components are given, you must only implement _yourApp_.
 
