@@ -1,0 +1,7 @@
+# Architecture decision records
+
+Decisions are recorded as described in [ADR 0001](0001-record-architecture-decisions.md). New ADRs start from the [template](template.md).
+
+| ADR | Title | Status |
+|---|---|---|
+| [0001](0001-record-architecture-decisions.md) | Record architecture decisions | Accepted |
