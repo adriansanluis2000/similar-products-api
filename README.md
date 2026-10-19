@@ -1,5 +1,7 @@
 # Similar Products API
 
+[![CI](https://github.com/adriansanluis2000/similar-products-api/actions/workflows/ci.yml/badge.svg)](https://github.com/adriansanluis2000/similar-products-api/actions/workflows/ci.yml)
+
 Solution to the [backend dev technical test](docs/statement.md) from [dalogax/backendDevTest](https://github.com/dalogax/backendDevTest): a Spring Boot service that exposes `GET /product/{productId}/similar` on port 5000 and returns the details of the products similar to a given one, built on top of two existing APIs.
 
 The focus is on a clean architecture, performance and resilience backed by measurements, and a delivery ready to deploy.
