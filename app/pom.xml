@@ -47,6 +47,37 @@
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
       </plugin>
+      <plugin>
+        <groupId>org.openapitools</groupId>
+        <artifactId>openapi-generator-maven-plugin</artifactId>
+        <version>7.26.0</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>generate</goal>
+            </goals>
+            <configuration>
+              <inputSpec>${project.basedir}/../similarProducts.yaml</inputSpec>
+              <generatorName>spring</generatorName>
+              <apiPackage>io.github.adriansanluis2000.similarproducts.infrastructure.adapter.in.rest.api</apiPackage>
+              <modelPackage>io.github.adriansanluis2000.similarproducts.infrastructure.adapter.in.rest.model</modelPackage>
+              <generateSupportingFiles>false</generateSupportingFiles>
+              <configOptions>
+                <interfaceOnly>true</interfaceOnly>
+                <skipDefaultInterface>true</skipDefaultInterface>
+                <useSpringBoot4>true</useSpringBoot4>
+                <useJackson3>true</useJackson3>
+                <openApiNullable>false</openApiNullable>
+                <annotationLibrary>none</annotationLibrary>
+                <documentationProvider>none</documentationProvider>
+                <hideGenerationTimestamp>true</hideGenerationTimestamp>
+                <generateJsonIncludeAnnotations>false</generateJsonIncludeAnnotations>
+                <generateJsonSetterNullsAnnotations>false</generateJsonSetterNullsAnnotations>
+              </configOptions>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
     </plugins>
   </build>
 </project>
