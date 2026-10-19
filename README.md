@@ -30,7 +30,17 @@ cd app
 ./mvnw spring-boot:run
 ```
 
-The API listens on <http://localhost:5000>, with its health check at <http://localhost:5000/actuator/health>. To build and run the tests, use `./mvnw verify`.
+The API listens on <http://localhost:5000>, with its health check at <http://localhost:5000/actuator/health>. It reads products from the existing APIs, which the mocks serve on port 3001 (see below). To build and run the tests, use `./mvnw verify`.
+
+## Configuration
+
+| Property | Default | Description |
+|---|---|---|
+| `spring.http.serviceclient.products.base-url` | `http://localhost:3001` | Base URL of the existing product APIs |
+| `spring.http.serviceclient.products.connect-timeout` | `1s` | Time to establish a connection to them |
+| `spring.http.serviceclient.products.read-timeout` | `2s` | Time to wait for each of their responses |
+
+Any property can be overridden with an environment variable, for example `SPRING_HTTP_SERVICECLIENT_PRODUCTS_BASEURL`.
 
 ## Running the test infrastructure
 
