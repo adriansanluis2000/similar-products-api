@@ -10,7 +10,7 @@ COPY app app
 RUN --mount=type=cache,target=/root/.m2 \
     cd app \
     && ./mvnw -B -ntp -q package -DskipTests \
-    && java -Djarmode=tools -jar target/similar-products-api-0.0.1-SNAPSHOT.jar extract --layers --launcher --destination target/extracted
+    && java -Djarmode=tools -jar target/similar-products-api.jar extract --layers --launcher --destination target/extracted
 
 # Run: JRE only, as an unprivileged user. Dependencies come first, so code changes only rebuild the last layer.
 FROM eclipse-temurin:25-jre@sha256:dbb43d81099eec91e0800226ed2296d03146ee7857165b95112372ad0d67e87f

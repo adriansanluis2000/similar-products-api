@@ -12,7 +12,7 @@
 
   <groupId>io.github.adriansanluis2000</groupId>
   <artifactId>similar-products-api</artifactId>
-  <version>0.0.1-SNAPSHOT</version>
+  <version>1.2.0</version>
   <name>Similar Products API</name>
   <description>Returns the details of the products similar to a given one</description>
 
@@ -121,6 +121,8 @@
   </dependencies>
 
   <build>
+    <!-- A jar name without the version, so the Dockerfile and scripts do not change with each release -->
+    <finalName>similar-products-api</finalName>
     <plugins>
       <plugin>
         <groupId>org.springframework.boot</groupId>

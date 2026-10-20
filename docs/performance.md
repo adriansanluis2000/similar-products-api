@@ -26,7 +26,7 @@ Start the infrastructure and the application:
 
 ```bash
 docker compose up -d simulado influxdb grafana
-cd app && ./mvnw -q package -DskipTests && java -jar target/similar-products-api-0.0.1-SNAPSHOT.jar
+cd app && ./mvnw -q package -DskipTests && java -jar target/similar-products-api.jar
 ```
 
 From another terminal at the repository root, run the test and print the table. With a file name, the script also saves the Grafana screenshot, using the browser in `CHROME`:
