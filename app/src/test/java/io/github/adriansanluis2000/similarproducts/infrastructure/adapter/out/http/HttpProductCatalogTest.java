@@ -172,6 +172,23 @@ class HttpProductCatalogTest {
     }
 
     @Test
+    void failsToGetSimilarIdsWhileTheCircuitIsOpenAndSaysWhenToRetry() {
+        catalog = catalogWith(100, 4);
+        upstream.stubFor(
+                get(urlPathMatching("/product/.*")).willReturn(aResponse().withStatus(500)));
+        for (var product : List.of("1", "2", "3", "4")) {
+            catalog.findProduct(id(product)).join();
+        }
+
+        assertThatThrownBy(() -> catalog.findSimilarIds(id("1")).join())
+                .cause()
+                .isInstanceOfSatisfying(ProductCatalogUnavailableException.class, e -> {
+                    assertThat(e.reason()).isEqualTo(UnavailableReason.CIRCUIT_OPEN);
+                    assertThat(e.retryAfter()).contains(WAIT_IN_OPEN_STATE);
+                });
+    }
+
+    @Test
     void letsCallsThroughAgainWhenTheCircuitHasBeenOpenForAWhile() {
         catalog = catalogWith(100, 4);
         upstream.stubFor(

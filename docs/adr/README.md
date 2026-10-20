@@ -13,3 +13,4 @@ Decisions are recorded as described in [ADR 0001](0001-record-architecture-decis
 | [0007](0007-cache-strategy.md) | Cache strategy | Accepted |
 | [0008](0008-upstream-resilience.md) | Circuit breaker and concurrency limit towards the existing APIs | Accepted |
 | [0009](0009-retry-on-connection-errors.md) | Retry once on connection errors | Accepted |
+| [0010](0010-map-upstream-failures-to-gateway-errors.md) | Map upstream failures to 502, 503 and 504 | Accepted |

@@ -42,9 +42,11 @@ The API listens on <http://localhost:5000>, with its health check at <http://loc
 | The product exists | 200 with its similar products. Those whose detail cannot be retrieved (404, error or timeout) or does not arrive within the time budget are left out, and repeated ids are returned once |
 | The product does not exist | 404 |
 | The product id is not 1 to 64 letters, digits, `-` or `_` | 400 |
-| The similar ids cannot be retrieved | 500 |
+| The existing APIs fail or cannot be reached when asked for the similar ids | 502 |
+| They do not answer the similar ids within the time budget | 504 |
+| They are not being called for a while, after failing too often or because too many calls are in progress | 503, with `Retry-After` |
 
-The reasons behind these rules are in [ADR 0004](docs/adr/0004-similar-products-business-rules.md).
+The reasons behind these rules are in [ADR 0004](docs/adr/0004-similar-products-business-rules.md) and [ADR 0010](docs/adr/0010-map-upstream-failures-to-gateway-errors.md).
 
 ## Configuration
 

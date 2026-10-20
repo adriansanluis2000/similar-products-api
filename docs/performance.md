@@ -35,6 +35,12 @@ From another terminal at the repository root, run the test and print the table. 
 scripts/perf-report.sh docs/performance/run.png
 ```
 
+To see how the service behaves when the existing APIs go down, with the infrastructure and the application running:
+
+```bash
+scripts/outage-test.sh
+```
+
 ## Baseline (v0.1.0)
 
 Sequential implementation: the details of the similar products are requested one after another, with a 1 s connection timeout, a 2 s read timeout and no cache.
@@ -143,3 +149,53 @@ Calls that fail to connect are retried once, after a short random wait. Timeouts
 ![Grafana dashboard of the retry run](performance/5-retry.png)
 
 - **No change, as expected.** Connection failures were rare even before the cache (0.2 % of one scenario in the parallel run) and have not shown up since. The retry is a safety net for them, covered by tests that reset the connection, and it never adds waits to slow products.
+
+## 6. Gateway errors for upstream failures
+
+Failures to get the similar ids answer 502, 503 (with `Retry-After`) or 504 instead of 500. See [ADR 0010](adr/0010-map-upstream-failures-to-gateway-errors.md).
+
+| Scenario | Requests | Throughput | p50 | p95 | p99 | Max | Errors | Products returned |
+|---|---:|---:|---:|---:|---:|---:|---:|---|
+| normal | 3802 | 380 req/s | 10 ms | 194 ms | 264 ms | 267 ms | 0.0 % | 2, 3, 4 |
+| notFound | 4000 | 400 req/s | 6 ms | 43 ms | 63 ms | 64 ms | 0.0 % | 1, 2 |
+| error | 4000 | 400 req/s | 7 ms | 42 ms | 72 ms | 79 ms | 0.0 % | 1, 2 |
+| slow | 2600 | 260 req/s | 14 ms | 1042 ms | 1043 ms | 1044 ms | 0.0 % | 3, 100, 1000 |
+| verySlow | 2400 | 240 req/s | 7 ms | 1043 ms | 1045 ms | 1046 ms | 0.0 % | 100, 1000 |
+
+![Grafana dashboard of the error mapping run](performance/6-error-mapping.png)
+
+No change under the load test, where the similar ids never fail. The difference shows in an outage.
+
+### Outage of the existing APIs
+
+[`scripts/outage-test.sh`](../scripts/outage-test.sh) pauses simulado for 20 seconds. Every second it asks for 10 products never requested before, so they miss the cache, and for product 1, which is cached. Grouped by phase:
+
+| Seconds | simulado | 10 new products per second | Cached product |
+|---|---|---|---|
+| 0 to 4 | up | 404 in 10 ms (they do not exist) | 200 in under 10 ms |
+| 5 to 11 | paused | 504 after 1.01 s, the time budget | 200 in under 10 ms |
+| 12 to 19 | paused | 503 in 10 ms: the circuit is open | 200 in under 10 ms |
+| 20 | paused | 504 after 1.01 s: the circuit lets trial calls through | 200 in under 10 ms |
+| 21 to 33 | paused, then up from 25 | 503 in 10 ms: the trial calls failed and the circuit opened again | 200 in under 10 ms |
+| 34 to 39 | up | 404 in 10 ms: the circuit closed | 200 in under 10 ms |
+
+- **No request waits longer than the budget**, although the upstream hangs and each call keeps running until its 6 s read timeout.
+- **The circuit opens about 7 s into the outage.** Failures count when calls end, after the read timeout. From then on, requests fail in 10 ms with `Retry-After: 10` instead of waiting a second each, and the upstream receives no traffic.
+- **Cached products are served throughout.** Product 1 answers 200 for the whole outage, from the cache.
+- **Recovery takes up to the open wait.** The trial calls at second 20 failed because simulado was still paused, so the circuit opened again and only closed at second 34, 9 s after simulado came back. A shorter wait recovers sooner, at the cost of more trial calls against a sick upstream.
+
+## Evolution
+
+p95 per scenario at each stage, and what `slow` and `verySlow` return:
+
+| Stage | normal | notFound | error | slow | verySlow | slow returns | verySlow returns |
+|---|---:|---:|---:|---:|---:|---|---|
+| Baseline | 539 ms | 260 ms | 267 ms | 3363 ms | 5229 ms | 3, 100 | 100 |
+| 1. Parallel lookups | 608 ms | 113 ms | 149 ms | 2142 ms | 2225 ms | 3, 100 | 100 |
+| 2. Time budget | 549 ms | 130 ms | 167 ms | 1045 ms | 1039 ms | 3 | none |
+| 3. Cache | 201 ms | 50 ms | 40 ms | 1046 ms | 1044 ms | 3, 100, 1000 | 100, 1000 |
+| 4. Circuit breaker and limit | 189 ms | 46 ms | 54 ms | 1041 ms | 1032 ms | 3, 100, 1000 | 100, 1000 |
+| 5. Retry | 209 ms | 40 ms | 55 ms | 1048 ms | 1045 ms | 3, 100, 1000 | 100, 1000 |
+| 6. Gateway errors | 194 ms | 43 ms | 42 ms | 1042 ms | 1043 ms | 3, 100, 1000 | 100, 1000 |
+
+From the baseline to the final stage, the p50 of every scenario is under 15 ms, throughput reaches the ceiling of the load test in the fast scenarios, no request waits more than about a second, and the slow products 100 and 1000 are returned once they have arrived. Product 10000, which takes 50 s, is never returned.

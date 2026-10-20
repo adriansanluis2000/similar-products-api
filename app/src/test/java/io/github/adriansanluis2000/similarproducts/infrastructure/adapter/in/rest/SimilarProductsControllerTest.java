@@ -13,12 +13,15 @@ import io.github.adriansanluis2000.similarproducts.domain.model.Product;
 import io.github.adriansanluis2000.similarproducts.domain.model.ProductId;
 import io.github.adriansanluis2000.similarproducts.domain.model.ProductNotFoundException;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -77,16 +80,36 @@ class SimilarProductsControllerTest {
         then(getSimilarProducts).should(never()).getSimilarProducts(any());
     }
 
-    @Test
-    void answersAnUnavailableCatalogWithAProblemDetail() {
+    @ParameterizedTest
+    @CsvSource({
+        "UPSTREAM_ERROR, 502",
+        "CONNECTION_ERROR, 502",
+        "INVALID_RESPONSE, 502",
+        "TIMEOUT, 504",
+        "CIRCUIT_OPEN, 503",
+        "CONCURRENCY_LIMIT, 503"
+    })
+    void answersAFailureToGetTheSimilarIdsWithAGatewayError(UnavailableReason reason, int status) {
         given(getSimilarProducts.getSimilarProducts(new ProductId("1")))
-                .willThrow(new ProductCatalogUnavailableException(UnavailableReason.TIMEOUT, null));
+                .willThrow(new ProductCatalogUnavailableException(reason, null));
 
         assertThat(mvc.get().uri("/product/1/similar"))
-                .hasStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+                .hasStatus(status)
                 .hasContentType(MediaType.APPLICATION_PROBLEM_JSON)
+                .doesNotContainHeader(HttpHeaders.RETRY_AFTER)
                 .bodyJson()
-                .extractingPath("$.title")
-                .isEqualTo("Product catalog unavailable");
+                .extractingPath("$.status")
+                .isEqualTo(status);
+    }
+
+    @Test
+    void tellsWhenToRetryIfTheCatalogIsBeingSpared() {
+        given(getSimilarProducts.getSimilarProducts(new ProductId("1")))
+                .willThrow(new ProductCatalogUnavailableException(
+                        UnavailableReason.CIRCUIT_OPEN, Duration.ofSeconds(10), null));
+
+        assertThat(mvc.get().uri("/product/1/similar"))
+                .hasStatus(HttpStatus.SERVICE_UNAVAILABLE)
+                .hasHeader(HttpHeaders.RETRY_AFTER, "10");
     }
 }

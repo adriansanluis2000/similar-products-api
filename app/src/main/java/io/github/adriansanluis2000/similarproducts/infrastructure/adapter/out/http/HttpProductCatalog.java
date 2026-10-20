@@ -45,11 +45,13 @@ public class HttpProductCatalog implements ProductCatalog {
     private final CircuitBreaker circuitBreaker;
     private final Bulkhead bulkhead;
     private final Retry retry;
+    private final Duration waitInOpenState;
 
     public HttpProductCatalog(ExistingProductsClient client, AsyncTaskExecutor executor, ResilienceSettings settings) {
         this.client = client;
         this.executor = executor;
         this.circuitBreaker = circuitBreaker(settings.circuitBreaker());
+        this.waitInOpenState = settings.circuitBreaker().waitInOpenState();
         this.bulkhead = Bulkhead.of(
                 "products",
                 BulkheadConfig.custom()
@@ -83,7 +85,8 @@ public class HttpProductCatalog implements ProductCatalog {
         } catch (HttpClientErrorException.NotFound e) {
             return Optional.empty();
         } catch (RuntimeException e) {
-            throw new ProductCatalogUnavailableException(reasonOf(e), e);
+            var reason = reasonOf(e);
+            throw new ProductCatalogUnavailableException(reason, retryAfter(reason), e);
         }
     }
 
@@ -98,6 +101,18 @@ public class HttpProductCatalog implements ProductCatalog {
             log.debug("Product {} unavailable: {}", productId.value(), reason, e);
             return new ProductLookup.Unavailable(reason);
         }
+    }
+
+    /**
+     * When to try again, if a guard rejected the call: at most the time the circuit stays open, or a second for a
+     * concurrency limit that frees up as soon as calls complete.
+     */
+    private Duration retryAfter(UnavailableReason reason) {
+        return switch (reason) {
+            case CIRCUIT_OPEN -> waitInOpenState;
+            case CONCURRENCY_LIMIT -> Duration.ofSeconds(1);
+            default -> null;
+        };
     }
 
     /** Each attempt goes through the circuit breaker and the concurrency limit, so a retry is also guarded. */
