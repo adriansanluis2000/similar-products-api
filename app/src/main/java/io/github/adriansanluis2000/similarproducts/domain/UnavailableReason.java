@@ -9,5 +9,9 @@ public enum UnavailableReason {
     /** The connection to the catalog could not be established. */
     CONNECTION_ERROR,
     /** The catalog answered with a body that cannot be read. */
-    INVALID_RESPONSE
+    INVALID_RESPONSE,
+    /** The catalog has been failing, so it is not called for a while. */
+    CIRCUIT_OPEN,
+    /** Too many calls to the catalog are already in progress. */
+    CONCURRENCY_LIMIT
 }

@@ -11,3 +11,4 @@ Decisions are recorded as described in [ADR 0001](0001-record-architecture-decis
 | [0005](0005-virtual-threads-over-webflux.md) | Virtual threads over WebFlux | Accepted |
 | [0006](0006-time-budget-and-partial-results.md) | Time budget per request and partial results | Accepted |
 | [0007](0007-cache-strategy.md) | Cache strategy | Accepted |
+| [0008](0008-upstream-resilience.md) | Circuit breaker and concurrency limit towards the existing APIs | Accepted |

@@ -22,7 +22,12 @@ class SimilarProductsPropertiesTest {
                     "similar-products.cache.products.refresh=30s",
                     "similar-products.cache.similar-ids.found=10m",
                     "similar-products.cache.similar-ids.not-found=5m",
-                    "similar-products.cache.similar-ids.refresh=5m");
+                    "similar-products.cache.similar-ids.refresh=5m",
+                    "similar-products.upstream.max-concurrent-calls=100",
+                    "similar-products.upstream.circuit-breaker.failure-rate-threshold=50",
+                    "similar-products.upstream.circuit-breaker.minimum-number-of-calls=20",
+                    "similar-products.upstream.circuit-breaker.sliding-window=10s",
+                    "similar-products.upstream.circuit-breaker.wait-in-open-state=10s");
 
     @Test
     void bindsTheSettings() {
@@ -31,6 +36,7 @@ class SimilarProductsPropertiesTest {
             assertThat(properties.budget()).isEqualTo(Duration.ofMillis(1500));
             assertThat(properties.cache().products().unavailable()).isEqualTo(Duration.ofSeconds(5));
             assertThat(properties.cache().similarIds().found()).isEqualTo(Duration.ofMinutes(10));
+            assertThat(properties.upstream().circuitBreaker().waitInOpenState()).isEqualTo(Duration.ofSeconds(10));
         });
     }
 
@@ -41,9 +47,12 @@ class SimilarProductsPropertiesTest {
                 "similar-products.budget=",
                 "similar-products.cache.maximum-size=0",
                 "similar-products.cache.products.unavailable=-1s",
-                "similar-products.cache.similar-ids.refresh="
+                "similar-products.cache.similar-ids.refresh=",
+                "similar-products.upstream.max-concurrent-calls=0",
+                "similar-products.upstream.circuit-breaker.failure-rate-threshold=101",
+                "similar-products.upstream.circuit-breaker.sliding-window=500ms"
             })
-    void rejectsMissingOrNonPositiveSettings(String setting) {
+    void rejectsMissingOrOutOfRangeSettings(String setting) {
         context.withPropertyValues(setting).run(it -> assertThat(it).hasFailed());
     }
 

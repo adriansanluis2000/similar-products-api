@@ -62,6 +62,11 @@ The reasons behind these rules are in [ADR 0004](docs/adr/0004-similar-products-
 | `similar-products.cache.similar-ids.found` | `10m` | How long the similar ids of a product are kept |
 | `similar-products.cache.similar-ids.not-found` | `5m` | How long a product without similar ids is remembered |
 | `similar-products.cache.similar-ids.refresh` | `5m` | Age after which similar ids are refreshed in the background |
+| `similar-products.upstream.max-concurrent-calls` | `100` | Calls to the existing APIs allowed at the same time; more are rejected at once ([ADR 0008](docs/adr/0008-upstream-resilience.md)) |
+| `similar-products.upstream.circuit-breaker.failure-rate-threshold` | `50` | Percentage of failed calls that opens the circuit |
+| `similar-products.upstream.circuit-breaker.minimum-number-of-calls` | `20` | Calls needed in the window before the failure rate counts |
+| `similar-products.upstream.circuit-breaker.sliding-window` | `10s` | Window over which the failure rate is computed |
+| `similar-products.upstream.circuit-breaker.wait-in-open-state` | `10s` | Time the circuit stays open before letting calls through again |
 
 Any property can be overridden with an environment variable, for example `SPRING_HTTP_SERVICECLIENT_PRODUCTS_BASEURL`.
 

@@ -18,11 +18,12 @@ import org.springframework.web.service.registry.ImportHttpServices;
 @ImportHttpServices(group = "products", types = ExistingProductsClient.class)
 class ApplicationConfig {
 
-    /** The existing APIs over HTTP, behind a cache. */
+    /** The existing APIs over HTTP, protected by a circuit breaker and a concurrency limit, behind a cache. */
     @Bean
     ProductCatalog productCatalog(
             ExistingProductsClient client, AsyncTaskExecutor executor, SimilarProductsProperties properties) {
-        return new CachingProductCatalog(new HttpProductCatalog(client, executor), properties.cache());
+        return new CachingProductCatalog(
+                new HttpProductCatalog(client, executor, properties.upstream()), properties.cache());
     }
 
     @Bean

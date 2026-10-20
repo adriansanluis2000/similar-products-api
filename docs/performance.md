@@ -110,3 +110,20 @@ Similar ids and product details are cached by outcome, concurrent lookups share 
 - **The fast scenarios reach the ceiling of the load test.** 200 users sleeping 0.5 s between requests cannot send more than 400 req/s, and the median answer takes 5 to 8 ms. Only the first requests of `normal`, before the cache is warm, take longer.
 - **The slow products are back.** `slow` returns 3, 100 and 1000, and `verySlow` returns 100 and 1000: product 1000 arrives in the background about 5 s after it is first requested and stays cached from then on.
 - **The first attempt at a slow product still costs the budget.** Nothing is known about a product until its first lookup ends, so every request in the meantime waits for it until the deadline. In `slow` that lasts until product 1000 arrives, about 5 s. In `verySlow`, until the first attempt at product 10000 gives up after the 6 s read timeout; from then on it is remembered as unavailable and requests answer in milliseconds. InfluxDB shows all `verySlow` requests waiting about 1 s in the first seconds and none afterwards. With 200 users arriving at once, those first seconds are well over 5 % of the requests, so the p95 of both scenarios stays at the budget by construction.
+
+## 4. Circuit breaker and concurrency limit
+
+Calls to the existing APIs go through a circuit breaker and a limit of 100 concurrent calls. See [ADR 0008](adr/0008-upstream-resilience.md).
+
+| Scenario | Requests | Throughput | p50 | p95 | p99 | Max | Errors | Products returned |
+|---|---:|---:|---:|---:|---:|---:|---:|---|
+| normal | 3973 | 397 req/s | 6 ms | 189 ms | 269 ms | 271 ms | 0.0 % | 2, 3, 4 |
+| notFound | 4000 | 400 req/s | 5 ms | 46 ms | 62 ms | 64 ms | 0.0 % | 1, 2 |
+| error | 3999 | 400 req/s | 5 ms | 54 ms | 56 ms | 57 ms | 0.0 % | 1, 2 |
+| slow | 2600 | 260 req/s | 14 ms | 1041 ms | 1043 ms | 1044 ms | 0.0 % | 3, 100, 1000 |
+| verySlow | 2399 | 240 req/s | 13 ms | 1032 ms | 1042 ms | 1043 ms | 0.0 % | 100, 1000 |
+
+![Grafana dashboard of the circuit breaker run](performance/4-circuit-breaker.png)
+
+- **No change under the load test, as intended.** The broken products (5, 6 and 10000) reach the upstream only once every few seconds thanks to the negative cache, far from the 20 calls in 10 s the circuit needs to open, and the cache keeps concurrent calls well below the limit. The circuit breaker must not trip because of one bad product, and it does not.
+- What these guards are for, an upstream that is down as a whole, does not happen in the load test. Their behaviour is covered by tests and by an outage experiment after the error mapping below.

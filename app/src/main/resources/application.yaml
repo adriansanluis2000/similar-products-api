@@ -30,6 +30,13 @@ similar-products:
       found: 10m
       not-found: 5m
       refresh: 5m
+  upstream:
+    max-concurrent-calls: 100
+    circuit-breaker:
+      failure-rate-threshold: 50
+      minimum-number-of-calls: 20
+      sliding-window: 10s
+      wait-in-open-state: 10s
 
 logging:
   level:

@@ -5,22 +5,33 @@ import io.github.adriansanluis2000.similarproducts.application.port.out.ProductC
 import io.github.adriansanluis2000.similarproducts.domain.ProductLookup;
 import io.github.adriansanluis2000.similarproducts.domain.UnavailableReason;
 import io.github.adriansanluis2000.similarproducts.domain.model.ProductId;
+import io.github.resilience4j.bulkhead.Bulkhead;
+import io.github.resilience4j.bulkhead.BulkheadConfig;
+import io.github.resilience4j.bulkhead.BulkheadFullException;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig.SlidingWindowType;
 import java.net.SocketTimeoutException;
 import java.net.http.HttpConnectTimeoutException;
 import java.net.http.HttpTimeoutException;
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientResponseException;
 
 /**
  * Reads products from the existing APIs and translates HTTP outcomes into the catalog vocabulary. Each call blocks a
- * virtual thread of the application task executor, so many calls can be waiting at once.
+ * virtual thread of the application task executor, so many calls can be waiting at once. Calls go through a circuit
+ * breaker and a concurrency limit (see ADR 0008).
  */
 public class HttpProductCatalog implements ProductCatalog {
 
@@ -28,10 +39,19 @@ public class HttpProductCatalog implements ProductCatalog {
 
     private final ExistingProductsClient client;
     private final AsyncTaskExecutor executor;
+    private final CircuitBreaker circuitBreaker;
+    private final Bulkhead bulkhead;
 
-    public HttpProductCatalog(ExistingProductsClient client, AsyncTaskExecutor executor) {
+    public HttpProductCatalog(ExistingProductsClient client, AsyncTaskExecutor executor, ResilienceSettings settings) {
         this.client = client;
         this.executor = executor;
+        this.circuitBreaker = circuitBreaker(settings.circuitBreaker());
+        this.bulkhead = Bulkhead.of(
+                "products",
+                BulkheadConfig.custom()
+                        .maxConcurrentCalls(settings.maxConcurrentCalls())
+                        .maxWaitDuration(Duration.ZERO)
+                        .build());
     }
 
     @Override
@@ -46,7 +66,7 @@ public class HttpProductCatalog implements ProductCatalog {
 
     private Optional<List<ProductId>> similarIds(ProductId productId) {
         try {
-            return Optional.of(client.getSimilarIds(productId.value()).stream()
+            return Optional.of(protect(() -> client.getSimilarIds(productId.value())).stream()
                     .map(ProductId::new)
                     .toList());
         } catch (HttpClientErrorException.NotFound e) {
@@ -58,7 +78,8 @@ public class HttpProductCatalog implements ProductCatalog {
 
     private ProductLookup product(ProductId productId) {
         try {
-            return new ProductLookup.Found(client.getProduct(productId.value()).toProduct());
+            return new ProductLookup.Found(
+                    protect(() -> client.getProduct(productId.value())).toProduct());
         } catch (HttpClientErrorException.NotFound e) {
             return new ProductLookup.NotFound();
         } catch (RuntimeException e) {
@@ -68,7 +89,31 @@ public class HttpProductCatalog implements ProductCatalog {
         }
     }
 
-    /** Anything that is not an HTTP error or an I/O failure means the body could not be turned into products. */
+    private <T> T protect(Supplier<T> call) {
+        return circuitBreaker.executeSupplier(Bulkhead.decorateSupplier(bulkhead, call));
+    }
+
+    /**
+     * Only server errors and I/O failures mean the existing APIs are unhealthy. A 404 is a valid answer, and rejections
+     * of the concurrency limit say nothing about the upstream.
+     */
+    private static CircuitBreaker circuitBreaker(ResilienceSettings.CircuitBreaker settings) {
+        return CircuitBreaker.of(
+                "products",
+                CircuitBreakerConfig.custom()
+                        .slidingWindow(
+                                (int) settings.slidingWindow().toSeconds(),
+                                settings.minimumNumberOfCalls(),
+                                SlidingWindowType.TIME_BASED)
+                        .failureRateThreshold(settings.failureRateThreshold())
+                        .waitDurationInOpenState(settings.waitInOpenState())
+                        .recordException(
+                                e -> e instanceof HttpServerErrorException || e instanceof ResourceAccessException)
+                        .ignoreExceptions(BulkheadFullException.class)
+                        .build());
+    }
+
+    /** Anything that is not an HTTP error, an I/O failure or a rejection means the body could not be read. */
     private static UnavailableReason reasonOf(RuntimeException e) {
         return switch (e) {
             case RestClientResponseException _ -> UnavailableReason.UPSTREAM_ERROR;
@@ -76,6 +121,8 @@ public class HttpProductCatalog implements ProductCatalog {
                 isTimeout(access.getMostSpecificCause())
                         ? UnavailableReason.TIMEOUT
                         : UnavailableReason.CONNECTION_ERROR;
+            case CallNotPermittedException _ -> UnavailableReason.CIRCUIT_OPEN;
+            case BulkheadFullException _ -> UnavailableReason.CONCURRENCY_LIMIT;
             default -> UnavailableReason.INVALID_RESPONSE;
         };
     }

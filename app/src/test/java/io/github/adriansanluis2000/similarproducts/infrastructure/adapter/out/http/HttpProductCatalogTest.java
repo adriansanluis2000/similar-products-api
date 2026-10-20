@@ -2,11 +2,15 @@ package io.github.adriansanluis2000.similarproducts.infrastructure.adapter.out.h
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
+import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.notFound;
 import static com.github.tomakehurst.wiremock.client.WireMock.okJson;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlPathMatching;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.awaitility.Awaitility.await;
 
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
 import io.github.adriansanluis2000.similarproducts.application.port.out.ProductCatalogUnavailableException;
@@ -15,6 +19,7 @@ import io.github.adriansanluis2000.similarproducts.domain.UnavailableReason;
 import io.github.adriansanluis2000.similarproducts.domain.model.Product;
 import io.github.adriansanluis2000.similarproducts.domain.model.ProductId;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,6 +33,8 @@ import org.springframework.test.context.DynamicPropertySource;
 /** Stubs reproduce how the real mocks answer, quirks included (see shared/simulado/mocks.json). */
 @SpringBootTest
 class HttpProductCatalogTest {
+
+    private static final Duration WAIT_IN_OPEN_STATE = Duration.ofMillis(300);
 
     @RegisterExtension
     static final WireMockExtension upstream = WireMockExtension.newInstance()
@@ -50,7 +57,13 @@ class HttpProductCatalogTest {
 
     @BeforeEach
     void createCatalog() {
-        catalog = new HttpProductCatalog(client, executor);
+        catalog = catalogWith(100, 100);
+    }
+
+    private HttpProductCatalog catalogWith(int maxConcurrentCalls, int minimumNumberOfCalls) {
+        var circuitBreaker = new ResilienceSettings.CircuitBreaker(
+                50, minimumNumberOfCalls, Duration.ofSeconds(10), WAIT_IN_OPEN_STATE);
+        return new HttpProductCatalog(client, executor, new ResilienceSettings(maxConcurrentCalls, circuitBreaker));
     }
 
     @Test
@@ -138,6 +151,63 @@ class HttpProductCatalogTest {
 
         assertThat(catalog.findProduct(id("1000")).join())
                 .isEqualTo(new ProductLookup.Unavailable(UnavailableReason.TIMEOUT));
+    }
+
+    @Test
+    void opensTheCircuitWhenTheExistingApisKeepFailing() {
+        catalog = catalogWith(100, 4);
+        upstream.stubFor(
+                get(urlPathMatching("/product/.*")).willReturn(aResponse().withStatus(500)));
+        for (var product : List.of("1", "2", "3", "4")) {
+            catalog.findProduct(id(product)).join();
+        }
+
+        assertThat(catalog.findProduct(id("5")).join())
+                .isEqualTo(new ProductLookup.Unavailable(UnavailableReason.CIRCUIT_OPEN));
+        assertThat(upstream.findAll(getRequestedFor(urlPathMatching("/product/.*"))))
+                .hasSize(4);
+    }
+
+    @Test
+    void letsCallsThroughAgainWhenTheCircuitHasBeenOpenForAWhile() {
+        catalog = catalogWith(100, 4);
+        upstream.stubFor(
+                get(urlPathMatching("/product/.*")).willReturn(aResponse().withStatus(500)));
+        for (var product : List.of("1", "2", "3", "4")) {
+            catalog.findProduct(id(product)).join();
+        }
+        upstream.stubFor(get("/product/2")
+                .willReturn(okJson("{\"id\":\"2\",\"name\":\"Dress\",\"price\":19.99,\"availability\":true}")));
+
+        await().pollDelay(WAIT_IN_OPEN_STATE)
+                .untilAsserted(
+                        () -> assertThat(catalog.findProduct(id("2")).join()).isInstanceOf(ProductLookup.Found.class));
+    }
+
+    @Test
+    void doesNotCountProductsThatDoNotExistAsFailures() {
+        catalog = catalogWith(100, 4);
+        upstream.stubFor(get(urlPathMatching("/product/.*")).willReturn(notFound()));
+        for (var product : List.of("1", "2", "3", "4", "5", "6")) {
+            catalog.findProduct(id(product)).join();
+        }
+
+        assertThat(catalog.findProduct(id("7")).join()).isEqualTo(new ProductLookup.NotFound());
+    }
+
+    @Test
+    void rejectsCallsBeyondTheConcurrencyLimit() {
+        catalog = catalogWith(1, 100);
+        upstream.stubFor(get("/product/1000")
+                .willReturn(okJson("{\"id\":\"1000\",\"name\":\"Coat\",\"price\":89.99,\"availability\":true}")
+                        .withFixedDelay(300)));
+        var slow = catalog.findProduct(id("1000"));
+        await().until(() ->
+                !upstream.findAll(getRequestedFor(urlEqualTo("/product/1000"))).isEmpty());
+
+        assertThat(catalog.findProduct(id("2")).join())
+                .isEqualTo(new ProductLookup.Unavailable(UnavailableReason.CONCURRENCY_LIMIT));
+        assertThat(slow.join()).isInstanceOf(ProductLookup.Found.class);
     }
 
     private static ProductId id(String value) {
