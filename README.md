@@ -33,7 +33,7 @@ Requires Docker with Compose. One command starts the application with the mocks,
 docker compose up -d simulado influxdb grafana app
 ```
 
-The image is built the first time; after changing the code, add `--build`. [`docker-compose.override.yaml`](docker-compose.override.yaml) adds the application to the infrastructure of the statement, whose compose file is left untouched. The image is described in [ADR 0011](docs/adr/0011-container-image.md).
+The image is built the first time; after changing the code, add `--build`. Every release tag also publishes the image to the GitHub Container Registry, as `ghcr.io/adriansanluis2000/similar-products-api`. [`docker-compose.override.yaml`](docker-compose.override.yaml) adds the application to the infrastructure of the statement, whose compose file is left untouched. The image is described in [ADR 0011](docs/adr/0011-container-image.md).
 
 ### Locally
 
