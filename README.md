@@ -97,6 +97,8 @@ Any property can be overridden with an environment variable, for example `SPRING
 | Architecture tests | Dependency rules between layers, with ArchUnit |
 | End-to-end tests (`*IT`) | The scenarios of the load test against the real mock image and `mocks.json`, with Testcontainers. They need Docker and are skipped without it |
 
+The build fails if tests cover less than 85 % of the lines of any `domain` or `application` package. The coverage report is written to `app/target/site/jacoco/index.html`.
+
 ## Observability
 
 | Endpoint | Content |
