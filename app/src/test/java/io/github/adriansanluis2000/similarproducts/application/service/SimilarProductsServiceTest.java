@@ -2,20 +2,23 @@ package io.github.adriansanluis2000.similarproducts.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.awaitility.Awaitility.await;
 
 import io.github.adriansanluis2000.similarproducts.application.port.out.ProductCatalog;
+import io.github.adriansanluis2000.similarproducts.application.port.out.ProductCatalogUnavailableException;
 import io.github.adriansanluis2000.similarproducts.domain.ProductLookup;
 import io.github.adriansanluis2000.similarproducts.domain.UnavailableReason;
 import io.github.adriansanluis2000.similarproducts.domain.model.Product;
 import io.github.adriansanluis2000.similarproducts.domain.model.ProductId;
 import io.github.adriansanluis2000.similarproducts.domain.model.ProductNotFoundException;
 import java.math.BigDecimal;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import org.junit.jupiter.api.Test;
 
 class SimilarProductsServiceTest {
@@ -28,6 +31,18 @@ class SimilarProductsServiceTest {
         catalog.similar("1", "3", "2", "4").withProducts("2", "3", "4");
 
         assertThat(idsOf(service.getSimilarProducts(id("1")))).containsExactly("3", "2", "4");
+    }
+
+    @Test
+    void looksUpAllSimilarProductsBeforeWaitingForAnyOfThem() {
+        catalog.similar("1", "2", "3", "4").withProducts("2", "3", "4");
+        catalog.holdLookups();
+
+        var result = CompletableFuture.supplyAsync(() -> service.getSimilarProducts(id("1")));
+
+        await().until(() -> catalog.lookedUp.size() == 3);
+        catalog.releaseLookups();
+        assertThat(idsOf(result.join())).containsExactly("2", "3", "4");
     }
 
     @Test
@@ -67,6 +82,13 @@ class SimilarProductsServiceTest {
                 .hasMessageContaining("99");
     }
 
+    @Test
+    void failsWhenTheSimilarIdsAreUnavailable() {
+        catalog.similarIdsFailure = new ProductCatalogUnavailableException(UnavailableReason.UPSTREAM_ERROR, null);
+
+        assertThatThrownBy(() -> service.getSimilarProducts(id("1"))).isSameAs(catalog.similarIdsFailure);
+    }
+
     private static ProductId id(String value) {
         return new ProductId(value);
     }
@@ -79,7 +101,9 @@ class SimilarProductsServiceTest {
 
         private final Map<ProductId, List<ProductId>> similarIds = new HashMap<>();
         private final Map<ProductId, ProductLookup> lookups = new HashMap<>();
-        private final List<ProductId> lookedUp = new ArrayList<>();
+        private final List<ProductId> lookedUp = new CopyOnWriteArrayList<>();
+        private CompletableFuture<Void> release = CompletableFuture.completedFuture(null);
+        private RuntimeException similarIdsFailure;
 
         InMemoryCatalog similar(String productId, String... similar) {
             similarIds.put(
@@ -94,15 +118,26 @@ class SimilarProductsServiceTest {
             }
         }
 
-        @Override
-        public Optional<List<ProductId>> findSimilarIds(ProductId productId) {
-            return Optional.ofNullable(similarIds.get(productId));
+        /** Lookups stay pending until released. */
+        void holdLookups() {
+            release = new CompletableFuture<>();
+        }
+
+        void releaseLookups() {
+            release.complete(null);
         }
 
         @Override
-        public ProductLookup findProduct(ProductId productId) {
+        public CompletableFuture<Optional<List<ProductId>>> findSimilarIds(ProductId productId) {
+            return similarIdsFailure == null
+                    ? CompletableFuture.completedFuture(Optional.ofNullable(similarIds.get(productId)))
+                    : CompletableFuture.failedFuture(similarIdsFailure);
+        }
+
+        @Override
+        public CompletableFuture<ProductLookup> findProduct(ProductId productId) {
             lookedUp.add(productId);
-            return lookups.getOrDefault(productId, new ProductLookup.NotFound());
+            return release.thenApply(_ -> lookups.getOrDefault(productId, new ProductLookup.NotFound()));
         }
     }
 }

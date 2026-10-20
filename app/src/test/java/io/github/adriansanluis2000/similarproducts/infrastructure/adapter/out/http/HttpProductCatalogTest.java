@@ -45,21 +45,22 @@ class HttpProductCatalogTest {
     void readsSimilarIdsSentAsNumbers() {
         upstream.stubFor(get("/product/1/similarids").willReturn(okJson("[2,3,4]")));
 
-        assertThat(catalog.findSimilarIds(id("1"))).contains(List.of(id("2"), id("3"), id("4")));
+        assertThat(catalog.findSimilarIds(id("1")).join()).contains(List.of(id("2"), id("3"), id("4")));
     }
 
     @Test
     void reportsAnUnknownProductAsEmptySimilarIds() {
         upstream.stubFor(get("/product/99/similarids").willReturn(notFound().withBody("Not Found")));
 
-        assertThat(catalog.findSimilarIds(id("99"))).isEmpty();
+        assertThat(catalog.findSimilarIds(id("99")).join()).isEmpty();
     }
 
     @Test
     void failsWhenSimilarIdsAnswerWithAServerError() {
         upstream.stubFor(get("/product/1/similarids").willReturn(aResponse().withStatus(500)));
 
-        assertThatThrownBy(() -> catalog.findSimilarIds(id("1")))
+        assertThatThrownBy(() -> catalog.findSimilarIds(id("1")).join())
+                .cause()
                 .isInstanceOfSatisfying(
                         ProductCatalogUnavailableException.class,
                         e -> assertThat(e.reason()).isEqualTo(UnavailableReason.UPSTREAM_ERROR));
@@ -69,7 +70,8 @@ class HttpProductCatalogTest {
     void failsWhenSimilarIdsAreMalformed() {
         upstream.stubFor(get("/product/1/similarids").willReturn(okJson("[2,3")));
 
-        assertThatThrownBy(() -> catalog.findSimilarIds(id("1")))
+        assertThatThrownBy(() -> catalog.findSimilarIds(id("1")).join())
+                .cause()
                 .isInstanceOfSatisfying(
                         ProductCatalogUnavailableException.class,
                         e -> assertThat(e.reason()).isEqualTo(UnavailableReason.INVALID_RESPONSE));
@@ -80,7 +82,7 @@ class HttpProductCatalogTest {
         upstream.stubFor(get("/product/2")
                 .willReturn(okJson("{\"id\":\"2\",\"name\":\"Dress\",\"price\":19.99,\"availability\":true}")));
 
-        assertThat(catalog.findProduct(id("2")))
+        assertThat(catalog.findProduct(id("2")).join())
                 .isEqualTo(new ProductLookup.Found(new Product(id("2"), "Dress", new BigDecimal("19.99"), true)));
     }
 
@@ -88,7 +90,7 @@ class HttpProductCatalogTest {
     void reportsAProductThatDoesNotExistAsNotFound() {
         upstream.stubFor(get("/product/5").willReturn(notFound().withBody("{\"message\":\"Product not found\"}")));
 
-        assertThat(catalog.findProduct(id("5"))).isEqualTo(new ProductLookup.NotFound());
+        assertThat(catalog.findProduct(id("5")).join()).isEqualTo(new ProductLookup.NotFound());
     }
 
     @Test
@@ -96,7 +98,7 @@ class HttpProductCatalogTest {
         upstream.stubFor(get("/product/6")
                 .willReturn(aResponse().withStatus(500).withHeader("Content-Type", "application/json")));
 
-        assertThat(catalog.findProduct(id("6")))
+        assertThat(catalog.findProduct(id("6")).join())
                 .isEqualTo(new ProductLookup.Unavailable(UnavailableReason.UPSTREAM_ERROR));
     }
 
@@ -104,7 +106,7 @@ class HttpProductCatalogTest {
     void reportsAMalformedDetailAsUnavailable() {
         upstream.stubFor(get("/product/2").willReturn(okJson("{\"id\":\"2\",\"name\":")));
 
-        assertThat(catalog.findProduct(id("2")))
+        assertThat(catalog.findProduct(id("2")).join())
                 .isEqualTo(new ProductLookup.Unavailable(UnavailableReason.INVALID_RESPONSE));
     }
 
@@ -112,7 +114,7 @@ class HttpProductCatalogTest {
     void reportsADetailWithMissingFieldsAsUnavailable() {
         upstream.stubFor(get("/product/2").willReturn(okJson("{\"id\":\"2\",\"name\":\"Dress\"}")));
 
-        assertThat(catalog.findProduct(id("2")))
+        assertThat(catalog.findProduct(id("2")).join())
                 .isEqualTo(new ProductLookup.Unavailable(UnavailableReason.INVALID_RESPONSE));
     }
 
@@ -122,7 +124,8 @@ class HttpProductCatalogTest {
                 .willReturn(okJson("{\"id\":\"1000\",\"name\":\"Coat\",\"price\":89.99,\"availability\":true}")
                         .withFixedDelay(1_500)));
 
-        assertThat(catalog.findProduct(id("1000"))).isEqualTo(new ProductLookup.Unavailable(UnavailableReason.TIMEOUT));
+        assertThat(catalog.findProduct(id("1000")).join())
+                .isEqualTo(new ProductLookup.Unavailable(UnavailableReason.TIMEOUT));
     }
 
     private static ProductId id(String value) {

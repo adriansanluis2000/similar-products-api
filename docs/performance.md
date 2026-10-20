@@ -55,3 +55,22 @@ What the numbers show:
 - **Slow answers mean fewer requests.** Each virtual user waits for its response before sleeping, so throughput falls from about 300 req/s to 40-60 req/s in the slow scenarios. The load generator measures the latency of the service, not its capacity, once responses take seconds.
 - **`normal` is the slowest of the fast scenarios** although it does similar work: it runs first, while the JVM is still warming up, and product 3 takes 100 ms upstream.
 - **One thread per request for its whole duration.** Tomcat's default pool of 200 threads matches the 200 users of the test, so nothing queues here. A slower upstream or more concurrent users would exhaust it.
+
+## 1. Parallel lookups on virtual threads
+
+The details of the similar products are requested at once, each blocking a virtual thread, and the request waits for all of them. Timeouts as in the baseline. See [ADR 0005](adr/0005-virtual-threads-over-webflux.md).
+
+| Scenario | Requests | Throughput | p50 | p95 | p99 | Max | Errors | Products returned |
+|---|---:|---:|---:|---:|---:|---:|---:|---|
+| normal | 3048 | 305 req/s | 118 ms | 608 ms | 675 ms | 732 ms | 0.0 % | 2, 3, 4 |
+| notFound | 3858 | 386 req/s | 16 ms | 113 ms | 304 ms | 344 ms | 0.0 % | 1, 2 |
+| error | 3849 | 385 req/s | 15 ms | 149 ms | 324 ms | 370 ms | 0.0 % | 1, 2 |
+| slow | 800 | 80 req/s | 2053 ms | 2142 ms | 2159 ms | 2161 ms | 0.0 % | 3, 100 |
+| verySlow | 806 | 81 req/s | 2037 ms | 2225 ms | 2244 ms | 2255 ms | 0.2 % | 100 |
+
+![Grafana dashboard of the parallel run](performance/1-parallel.png)
+
+- **A request now costs its slowest product, not the sum.** The p50 drops from 3.2 s to 2.1 s in `slow` and from 5.1 s to 2.0 s in `verySlow`, both bounded by the 2 s read timeout that products 1000 and 10000 hit. Throughput grows from 60 and 40 req/s to 80 req/s.
+- **The fast scenarios stay within the noise or improve** (`notFound` p95 from 260 ms to 113 ms). In `normal`, product 3 takes 100 ms upstream, so that is the floor.
+- **First errors.** Two requests of `verySlow` (0.2 %) answered 500 because the call for the similar ids failed with a connection error, not a timeout. Many more calls are now waiting on the mock at the same time.
+- **Still far from the goal.** Requests still wait up to the full read timeout, and products 1000 and 10000 never make it into an answer.

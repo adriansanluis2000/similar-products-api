@@ -10,27 +10,43 @@ import java.net.http.HttpConnectTimeoutException;
 import java.net.http.HttpTimeoutException;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientResponseException;
 
-/** Reads products from the existing APIs and translates HTTP outcomes into the catalog vocabulary. */
+/**
+ * Reads products from the existing APIs and translates HTTP outcomes into the catalog vocabulary. Each call blocks a
+ * virtual thread of the application task executor, so many calls can be waiting at once.
+ */
 @Component
 class HttpProductCatalog implements ProductCatalog {
 
     private static final Logger log = LoggerFactory.getLogger(HttpProductCatalog.class);
 
     private final ExistingProductsClient client;
+    private final AsyncTaskExecutor executor;
 
-    HttpProductCatalog(ExistingProductsClient client) {
+    HttpProductCatalog(ExistingProductsClient client, AsyncTaskExecutor executor) {
         this.client = client;
+        this.executor = executor;
     }
 
     @Override
-    public Optional<List<ProductId>> findSimilarIds(ProductId productId) {
+    public CompletableFuture<Optional<List<ProductId>>> findSimilarIds(ProductId productId) {
+        return CompletableFuture.supplyAsync(() -> similarIds(productId), executor);
+    }
+
+    @Override
+    public CompletableFuture<ProductLookup> findProduct(ProductId productId) {
+        return CompletableFuture.supplyAsync(() -> product(productId), executor);
+    }
+
+    private Optional<List<ProductId>> similarIds(ProductId productId) {
         try {
             return Optional.of(client.getSimilarIds(productId.value()).stream()
                     .map(ProductId::new)
@@ -42,8 +58,7 @@ class HttpProductCatalog implements ProductCatalog {
         }
     }
 
-    @Override
-    public ProductLookup findProduct(ProductId productId) {
+    private ProductLookup product(ProductId productId) {
         try {
             return new ProductLookup.Found(client.getProduct(productId.value()).toProduct());
         } catch (HttpClientErrorException.NotFound e) {
