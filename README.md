@@ -13,6 +13,7 @@ The focus is on a clean architecture, performance and resilience backed by measu
 | Path | Content |
 |---|---|
 | `app/` | Spring Boot application |
+| `Dockerfile`, `docker-compose.override.yaml` | Container image and its service next to the test infrastructure |
 | `similarProducts.yaml` | Contract of the API to implement |
 | `existingApis.yaml` | Contract of the existing APIs the service consumes |
 | `docker-compose.yaml`, `shared/` | Test infrastructure: mocks (simulado), k6, InfluxDB and Grafana |
@@ -24,14 +25,26 @@ Files from the original statement are kept unchanged, so the load test runs agai
 
 ## Running the application
 
-Requires JDK 25.
+### With Docker
+
+Requires Docker with Compose. One command starts the application with the mocks, InfluxDB and Grafana:
+
+```bash
+docker compose up -d simulado influxdb grafana app
+```
+
+The image is built the first time; after changing the code, add `--build`. [`docker-compose.override.yaml`](docker-compose.override.yaml) adds the application to the infrastructure of the statement, whose compose file is left untouched. The image is described in [ADR 0011](docs/adr/0011-container-image.md).
+
+### Locally
+
+Requires JDK 25 and the mocks running (see [Running the test infrastructure](#running-the-test-infrastructure)).
 
 ```bash
 cd app
 ./mvnw spring-boot:run
 ```
 
-The API listens on <http://localhost:5000>, with its health check at <http://localhost:5000/actuator/health>. It reads products from the existing APIs, which the mocks serve on port 3001 (see below). To build and run the tests, use `./mvnw verify`.
+The API listens on <http://localhost:5000>, with its health check at <http://localhost:5000/actuator/health>. To build and run the tests, use `./mvnw verify`.
 
 ## API
 

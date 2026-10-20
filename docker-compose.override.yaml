@@ -1,0 +1,11 @@
+# Adds the application to the test infrastructure of docker-compose.yaml, which is left as the statement provides it.
+# Docker Compose merges both files: docker compose up -d simulado influxdb grafana app
+services:
+  app:
+    build: .
+    ports:
+      - "5000:5000"
+    environment:
+      SPRING_HTTP_SERVICECLIENT_PRODUCTS_BASEURL: http://simulado:80
+    depends_on:
+      - simulado
