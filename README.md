@@ -52,8 +52,16 @@ The reasons behind these rules are in [ADR 0004](docs/adr/0004-similar-products-
 |---|---|---|
 | `spring.http.serviceclient.products.base-url` | `http://localhost:3001` | Base URL of the existing product APIs |
 | `spring.http.serviceclient.products.connect-timeout` | `1s` | Time to establish a connection to them |
-| `spring.http.serviceclient.products.read-timeout` | `2s` | Time to wait for each of their responses |
+| `spring.http.serviceclient.products.read-timeout` | `6s` | Time to wait for each of their responses. Longer than the budget, so slow products can still reach the cache |
 | `similar-products.budget` | `1s` | Maximum time to answer a request; products that take longer are left out ([ADR 0006](docs/adr/0006-time-budget-and-partial-results.md)) |
+| `similar-products.cache.maximum-size` | `10000` | Entries kept per cache ([ADR 0007](docs/adr/0007-cache-strategy.md)) |
+| `similar-products.cache.products.found` | `60s` | How long a product detail is kept |
+| `similar-products.cache.products.not-found` | `5m` | How long a product that does not exist is remembered |
+| `similar-products.cache.products.unavailable` | `5s` | How long a failed lookup is remembered before trying again |
+| `similar-products.cache.products.refresh` | `30s` | Age after which a cached detail is refreshed in the background while still served |
+| `similar-products.cache.similar-ids.found` | `10m` | How long the similar ids of a product are kept |
+| `similar-products.cache.similar-ids.not-found` | `5m` | How long a product without similar ids is remembered |
+| `similar-products.cache.similar-ids.refresh` | `5m` | Age after which similar ids are refreshed in the background |
 
 Any property can be overridden with an environment variable, for example `SPRING_HTTP_SERVICECLIENT_PRODUCTS_BASEURL`.
 

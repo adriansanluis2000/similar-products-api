@@ -16,10 +16,12 @@ import io.github.adriansanluis2000.similarproducts.domain.model.Product;
 import io.github.adriansanluis2000.similarproducts.domain.model.ProductId;
 import java.math.BigDecimal;
 import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
@@ -39,7 +41,17 @@ class HttpProductCatalogTest {
     }
 
     @Autowired
+    private ExistingProductsClient client;
+
+    @Autowired
+    private AsyncTaskExecutor executor;
+
     private HttpProductCatalog catalog;
+
+    @BeforeEach
+    void createCatalog() {
+        catalog = new HttpProductCatalog(client, executor);
+    }
 
     @Test
     void readsSimilarIdsSentAsNumbers() {

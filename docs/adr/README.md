@@ -10,3 +10,4 @@ Decisions are recorded as described in [ADR 0001](0001-record-architecture-decis
 | [0004](0004-similar-products-business-rules.md) | Business rules for similar products | Accepted |
 | [0005](0005-virtual-threads-over-webflux.md) | Virtual threads over WebFlux | Accepted |
 | [0006](0006-time-budget-and-partial-results.md) | Time budget per request and partial results | Accepted |
+| [0007](0007-cache-strategy.md) | Cache strategy | Accepted |

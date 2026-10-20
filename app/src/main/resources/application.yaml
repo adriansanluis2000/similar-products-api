@@ -6,7 +6,7 @@ spring:
       products:
         base-url: http://localhost:3001
         connect-timeout: 1s
-        read-timeout: 2s
+        read-timeout: 6s
   threads:
     virtual:
       enabled: true
@@ -19,3 +19,19 @@ server:
 
 similar-products:
   budget: 1s
+  cache:
+    maximum-size: 10000
+    products:
+      found: 60s
+      not-found: 5m
+      unavailable: 5s
+      refresh: 30s
+    similar-ids:
+      found: 10m
+      not-found: 5m
+      refresh: 5m
+
+logging:
+  level:
+    # Caffeine logs every failed load or refresh with a stack trace. Those failures are expected and handled here.
+    com.github.benmanes.caffeine: error

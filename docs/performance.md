@@ -92,3 +92,21 @@ Requests answer within a budget of 1 s with the products that have arrived. Look
 - **No request waits much longer than the budget.** The p99 of `slow` and `verySlow` drops from about 2.2 s to 1.05 s, and their throughput grows from 80 to 140 req/s.
 - **But the slow products are gone.** Product 100 takes about as long as the budget, so it misses it, and `verySlow` now answers an empty list. Every request starts the slow lookups again and nothing keeps their results, so they are never shown. That is what the cache is for.
 - The fast scenarios do not change: they never get close to the budget.
+
+## 3. Cache with coalescing and negative caching
+
+Similar ids and product details are cached by outcome, concurrent lookups share one upstream call, and lookups that miss the budget are cached when they arrive. The read timeout grows to 6 s so product 1000 can arrive in the background. See [ADR 0007](adr/0007-cache-strategy.md).
+
+| Scenario | Requests | Throughput | p50 | p95 | p99 | Max | Errors | Products returned |
+|---|---:|---:|---:|---:|---:|---:|---:|---|
+| normal | 3974 | 397 req/s | 6 ms | 201 ms | 280 ms | 283 ms | 0.0 % | 2, 3, 4 |
+| notFound | 4000 | 400 req/s | 5 ms | 50 ms | 65 ms | 66 ms | 0.0 % | 1, 2 |
+| error | 4000 | 400 req/s | 8 ms | 40 ms | 62 ms | 64 ms | 0.0 % | 1, 2 |
+| slow | 2600 | 260 req/s | 15 ms | 1046 ms | 1048 ms | 1049 ms | 0.0 % | 3, 100, 1000 |
+| verySlow | 2400 | 240 req/s | 6 ms | 1044 ms | 1046 ms | 1046 ms | 0.0 % | 100, 1000 |
+
+![Grafana dashboard of the cache run](performance/3-cache.png)
+
+- **The fast scenarios reach the ceiling of the load test.** 200 users sleeping 0.5 s between requests cannot send more than 400 req/s, and the median answer takes 5 to 8 ms. Only the first requests of `normal`, before the cache is warm, take longer.
+- **The slow products are back.** `slow` returns 3, 100 and 1000, and `verySlow` returns 100 and 1000: product 1000 arrives in the background about 5 s after it is first requested and stays cached from then on.
+- **The first attempt at a slow product still costs the budget.** Nothing is known about a product until its first lookup ends, so every request in the meantime waits for it until the deadline. In `slow` that lasts until product 1000 arrives, about 5 s. In `verySlow`, until the first attempt at product 10000 gives up after the 6 s read timeout; from then on it is remembered as unavailable and requests answer in milliseconds. InfluxDB shows all `verySlow` requests waiting about 1 s in the first seconds and none afterwards. With 200 users arriving at once, those first seconds are well over 5 % of the requests, so the p95 of both scenarios stays at the budget by construction.

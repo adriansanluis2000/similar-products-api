@@ -14,7 +14,6 @@ import java.util.concurrent.CompletableFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.task.AsyncTaskExecutor;
-import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientResponseException;
@@ -23,15 +22,14 @@ import org.springframework.web.client.RestClientResponseException;
  * Reads products from the existing APIs and translates HTTP outcomes into the catalog vocabulary. Each call blocks a
  * virtual thread of the application task executor, so many calls can be waiting at once.
  */
-@Component
-class HttpProductCatalog implements ProductCatalog {
+public class HttpProductCatalog implements ProductCatalog {
 
     private static final Logger log = LoggerFactory.getLogger(HttpProductCatalog.class);
 
     private final ExistingProductsClient client;
     private final AsyncTaskExecutor executor;
 
-    HttpProductCatalog(ExistingProductsClient client, AsyncTaskExecutor executor) {
+    public HttpProductCatalog(ExistingProductsClient client, AsyncTaskExecutor executor) {
         this.client = client;
         this.executor = executor;
     }
