@@ -86,6 +86,17 @@ The reasons behind these rules are in [ADR 0004](docs/adr/0004-similar-products-
 
 Any property can be overridden with an environment variable, for example `SPRING_HTTP_SERVICECLIENT_PRODUCTS_BASEURL`.
 
+## Tests
+
+`./mvnw verify` (in `app/`) runs every check:
+
+| Kind | What it covers |
+|---|---|
+| Unit tests | Domain invariants, the use case (order, omissions, duplicates, time budget) and the cache (expiry by outcome, refresh, coalescing), with fakes and a fake clock |
+| Adapter tests | The HTTP adapter against WireMock (quirks of the mocks, timeouts, circuit breaker, retry) and the REST adapter with MockMvc |
+| Architecture tests | Dependency rules between layers, with ArchUnit |
+| End-to-end tests (`*IT`) | The scenarios of the load test against the real mock image and `mocks.json`, with Testcontainers. They need Docker and are skipped without it |
+
 ## Observability
 
 | Endpoint | Content |
