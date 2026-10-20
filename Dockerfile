@@ -22,7 +22,9 @@ COPY --from=build /workspace/app/target/extracted/snapshot-dependencies/ ./
 COPY --from=build /workspace/app/target/extracted/application/ ./
 USER app
 EXPOSE 5000
-ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75"
+# Logs as JSON in the Elastic Common Schema, with trace ids, for a log collector to parse.
+ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75" \
+    LOGGING_STRUCTURED_FORMAT_CONSOLE=ecs
 # The image has no curl or wget: bash opens the connection itself.
 HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --retries=3 \
     CMD bash -c 'exec 3<>/dev/tcp/127.0.0.1/5000 \

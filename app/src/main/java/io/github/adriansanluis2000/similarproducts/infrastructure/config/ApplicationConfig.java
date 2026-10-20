@@ -13,6 +13,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.core.task.AsyncTaskExecutor;
+import org.springframework.core.task.TaskDecorator;
+import org.springframework.core.task.support.ContextPropagatingTaskDecorator;
 import org.springframework.web.service.registry.ImportHttpServices;
 
 /** Base URL and timeouts of the client come from {@code spring.http.serviceclient.products.*}. */
@@ -33,6 +35,12 @@ class ApplicationConfig {
     @Primary
     CachingProductCatalog productCatalog(HttpProductCatalog httpProductCatalog, SimilarProductsProperties properties) {
         return new CachingProductCatalog(httpProductCatalog, properties.cache());
+    }
+
+    /** Carries the tracing context of a request into the virtual threads that call the existing APIs. */
+    @Bean
+    TaskDecorator contextPropagatingTaskDecorator() {
+        return new ContextPropagatingTaskDecorator();
     }
 
     @Bean

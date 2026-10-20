@@ -104,6 +104,8 @@ Besides the standard JVM and HTTP metrics (`http_server_requests_*` for this API
 | `resilience4j_bulkhead_available_concurrent_calls` | Room left under the concurrency limit |
 | `resilience4j_retry_calls_total` | Calls that succeeded or failed with and without a retry |
 
+The container writes its logs as JSON in the Elastic Common Schema; locally they stay human-readable. Every log line of a request carries its `traceId`, also those written while calling the existing APIs. See [ADR 0012](docs/adr/0012-observability.md).
+
 ## Running the test infrastructure
 
 Requires Docker with Compose.
