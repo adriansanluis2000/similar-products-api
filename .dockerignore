@@ -1,0 +1,7 @@
+# Only what the build needs: the contract and the application sources.
+*
+!similarProducts.yaml
+!app/.mvn/
+!app/mvnw
+!app/pom.xml
+!app/src/
