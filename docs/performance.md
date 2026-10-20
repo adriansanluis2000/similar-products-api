@@ -74,3 +74,21 @@ The details of the similar products are requested at once, each blocking a virtu
 - **The fast scenarios stay within the noise or improve** (`notFound` p95 from 260 ms to 113 ms). In `normal`, product 3 takes 100 ms upstream, so that is the floor.
 - **First errors.** Two requests of `verySlow` (0.2 %) answered 500 because the call for the similar ids failed with a connection error, not a timeout. Many more calls are now waiting on the mock at the same time.
 - **Still far from the goal.** Requests still wait up to the full read timeout, and products 1000 and 10000 never make it into an answer.
+
+## 2. Time budget per request
+
+Requests answer within a budget of 1 s with the products that have arrived. Lookups that miss it keep running but their result is not used yet. See [ADR 0006](adr/0006-time-budget-and-partial-results.md).
+
+| Scenario | Requests | Throughput | p50 | p95 | p99 | Max | Errors | Products returned |
+|---|---:|---:|---:|---:|---:|---:|---:|---|
+| normal | 3041 | 304 req/s | 121 ms | 549 ms | 637 ms | 661 ms | 0.0 % | 2, 3, 4 |
+| notFound | 3848 | 385 req/s | 15 ms | 130 ms | 306 ms | 338 ms | 0.0 % | 1, 2 |
+| error | 3839 | 384 req/s | 16 ms | 167 ms | 342 ms | 389 ms | 0.0 % | 1, 2 |
+| slow | 1400 | 140 req/s | 1008 ms | 1045 ms | 1046 ms | 1046 ms | 0.0 % | 3 |
+| verySlow | 1400 | 140 req/s | 1017 ms | 1039 ms | 1051 ms | 1051 ms | 0.0 % | none |
+
+![Grafana dashboard of the time budget run](performance/2-budget.png)
+
+- **No request waits much longer than the budget.** The p99 of `slow` and `verySlow` drops from about 2.2 s to 1.05 s, and their throughput grows from 80 to 140 req/s.
+- **But the slow products are gone.** Product 100 takes about as long as the budget, so it misses it, and `verySlow` now answers an empty list. Every request starts the slow lookups again and nothing keeps their results, so they are never shown. That is what the cache is for.
+- The fast scenarios do not change: they never get close to the budget.

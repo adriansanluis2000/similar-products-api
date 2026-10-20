@@ -39,7 +39,7 @@ The API listens on <http://localhost:5000>, with its health check at <http://loc
 
 | Situation | Response |
 |---|---|
-| The product exists | 200 with its similar products. Those whose detail cannot be retrieved (404, error or timeout) are left out, and repeated ids are returned once |
+| The product exists | 200 with its similar products. Those whose detail cannot be retrieved (404, error or timeout) or does not arrive within the time budget are left out, and repeated ids are returned once |
 | The product does not exist | 404 |
 | The product id is not 1 to 64 letters, digits, `-` or `_` | 400 |
 | The similar ids cannot be retrieved | 500 |
@@ -53,6 +53,7 @@ The reasons behind these rules are in [ADR 0004](docs/adr/0004-similar-products-
 | `spring.http.serviceclient.products.base-url` | `http://localhost:3001` | Base URL of the existing product APIs |
 | `spring.http.serviceclient.products.connect-timeout` | `1s` | Time to establish a connection to them |
 | `spring.http.serviceclient.products.read-timeout` | `2s` | Time to wait for each of their responses |
+| `similar-products.budget` | `1s` | Maximum time to answer a request; products that take longer are left out ([ADR 0006](docs/adr/0006-time-budget-and-partial-results.md)) |
 
 Any property can be overridden with an environment variable, for example `SPRING_HTTP_SERVICECLIENT_PRODUCTS_BASEURL`.
 

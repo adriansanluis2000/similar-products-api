@@ -16,3 +16,6 @@ spring:
 
 server:
   port: 5000
+
+similar-products:
+  budget: 1s
