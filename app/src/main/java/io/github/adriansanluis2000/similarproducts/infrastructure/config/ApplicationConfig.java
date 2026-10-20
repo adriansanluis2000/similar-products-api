@@ -6,6 +6,8 @@ import io.github.adriansanluis2000.similarproducts.application.service.SimilarPr
 import io.github.adriansanluis2000.similarproducts.infrastructure.adapter.out.cache.CachingProductCatalog;
 import io.github.adriansanluis2000.similarproducts.infrastructure.adapter.out.http.ExistingProductsClient;
 import io.github.adriansanluis2000.similarproducts.infrastructure.adapter.out.http.HttpProductCatalog;
+import io.github.adriansanluis2000.similarproducts.infrastructure.adapter.out.metrics.MicrometerOmissionListener;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -34,7 +36,8 @@ class ApplicationConfig {
     }
 
     @Bean
-    GetSimilarProductsUseCase getSimilarProductsUseCase(ProductCatalog catalog, SimilarProductsProperties properties) {
-        return new SimilarProductsService(catalog, properties.budget());
+    GetSimilarProductsUseCase getSimilarProductsUseCase(
+            ProductCatalog catalog, SimilarProductsProperties properties, MeterRegistry meterRegistry) {
+        return new SimilarProductsService(catalog, properties.budget(), new MicrometerOmissionListener(meterRegistry));
     }
 }

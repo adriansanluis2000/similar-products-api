@@ -98,6 +98,7 @@ Besides the standard JVM and HTTP metrics (`http_server_requests_*` for this API
 
 | Metric | Meaning |
 |---|---|
+| `similar_products_omitted_total` (`reason` = `not_found`, `budget_exceeded`, `timeout`, `upstream_error`, `circuit_open`, ...) | Similar products left out of answers, which the answers themselves do not show |
 | `cache_gets_total`, `cache_puts_total`, `cache_evictions_total` (`cache` = `products`, `similar-ids`) | Hits and misses of each cache, and so its hit ratio |
 | `resilience4j_circuitbreaker_state`, `resilience4j_circuitbreaker_calls_*` | State of the circuit breaker and outcome of the calls it guards |
 | `resilience4j_bulkhead_available_concurrent_calls` | Room left under the concurrency limit |

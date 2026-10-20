@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.awaitility.Awaitility.await;
 
+import io.github.adriansanluis2000.similarproducts.application.port.out.OmissionListener;
 import io.github.adriansanluis2000.similarproducts.application.port.out.ProductCatalog;
 import io.github.adriansanluis2000.similarproducts.application.port.out.ProductCatalogUnavailableException;
 import io.github.adriansanluis2000.similarproducts.domain.ProductLookup;
@@ -27,8 +28,11 @@ import org.junit.jupiter.api.Timeout;
 class SimilarProductsServiceTest {
 
     private final InMemoryCatalog catalog = new InMemoryCatalog();
-    private final SimilarProductsService service = new SimilarProductsService(catalog, Duration.ofSeconds(5));
-    private final SimilarProductsService hurriedService = new SimilarProductsService(catalog, Duration.ofMillis(100));
+    private final RecordedOmissions omissions = new RecordedOmissions();
+    private final SimilarProductsService service =
+            new SimilarProductsService(catalog, Duration.ofSeconds(5), omissions);
+    private final SimilarProductsService hurriedService =
+            new SimilarProductsService(catalog, Duration.ofMillis(100), omissions);
 
     @Test
     void returnsSimilarProductsInSimilarityOrder() {
@@ -56,6 +60,7 @@ class SimilarProductsServiceTest {
         catalog.neverAnswer("1000");
 
         assertThat(idsOf(hurriedService.getSimilarProducts(id("2")))).containsExactly("3", "100");
+        assertThat(omissions.events).containsExactly("1000 missed the budget");
     }
 
     @Test
@@ -86,6 +91,7 @@ class SimilarProductsServiceTest {
         catalog.similar("4", "1", "5", "2").withProducts("1", "2");
 
         assertThat(idsOf(service.getSimilarProducts(id("4")))).containsExactly("1", "2");
+        assertThat(omissions.events).containsExactly("5 not found");
     }
 
     @Test
@@ -94,6 +100,7 @@ class SimilarProductsServiceTest {
         catalog.lookups.put(id("6"), new ProductLookup.Unavailable(UnavailableReason.UPSTREAM_ERROR));
 
         assertThat(idsOf(service.getSimilarProducts(id("5")))).containsExactly("1", "2");
+        assertThat(omissions.events).containsExactly("6 unavailable: UPSTREAM_ERROR");
     }
 
     @Test
@@ -132,6 +139,26 @@ class SimilarProductsServiceTest {
 
     private static List<String> idsOf(List<Product> products) {
         return products.stream().map(product -> product.id().value()).toList();
+    }
+
+    private static final class RecordedOmissions implements OmissionListener {
+
+        private final List<String> events = new CopyOnWriteArrayList<>();
+
+        @Override
+        public void productNotFound(ProductId productId) {
+            events.add(productId.value() + " not found");
+        }
+
+        @Override
+        public void productUnavailable(ProductId productId, UnavailableReason reason) {
+            events.add(productId.value() + " unavailable: " + reason);
+        }
+
+        @Override
+        public void budgetExceeded(ProductId productId) {
+            events.add(productId.value() + " missed the budget");
+        }
     }
 
     private static final class InMemoryCatalog implements ProductCatalog {
