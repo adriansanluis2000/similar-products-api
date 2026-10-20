@@ -63,6 +63,7 @@ The reasons behind these rules are in [ADR 0004](docs/adr/0004-similar-products-
 | `similar-products.cache.similar-ids.not-found` | `5m` | How long a product without similar ids is remembered |
 | `similar-products.cache.similar-ids.refresh` | `5m` | Age after which similar ids are refreshed in the background |
 | `similar-products.upstream.max-concurrent-calls` | `100` | Calls to the existing APIs allowed at the same time; more are rejected at once ([ADR 0008](docs/adr/0008-upstream-resilience.md)) |
+| `similar-products.upstream.retry-backoff` | `100ms` | Average wait before retrying, once, a call that failed to connect ([ADR 0009](docs/adr/0009-retry-on-connection-errors.md)) |
 | `similar-products.upstream.circuit-breaker.failure-rate-threshold` | `50` | Percentage of failed calls that opens the circuit |
 | `similar-products.upstream.circuit-breaker.minimum-number-of-calls` | `20` | Calls needed in the window before the failure rate counts |
 | `similar-products.upstream.circuit-breaker.sliding-window` | `10s` | Window over which the failure rate is computed |

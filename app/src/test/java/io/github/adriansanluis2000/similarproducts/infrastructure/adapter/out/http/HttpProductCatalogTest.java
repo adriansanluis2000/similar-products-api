@@ -8,10 +8,12 @@ import static com.github.tomakehurst.wiremock.client.WireMock.okJson;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathMatching;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
+import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.awaitility.Awaitility.await;
 
+import com.github.tomakehurst.wiremock.http.Fault;
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
 import io.github.adriansanluis2000.similarproducts.application.port.out.ProductCatalogUnavailableException;
 import io.github.adriansanluis2000.similarproducts.domain.ProductLookup;
@@ -63,7 +65,8 @@ class HttpProductCatalogTest {
     private HttpProductCatalog catalogWith(int maxConcurrentCalls, int minimumNumberOfCalls) {
         var circuitBreaker = new ResilienceSettings.CircuitBreaker(
                 50, minimumNumberOfCalls, Duration.ofSeconds(10), WAIT_IN_OPEN_STATE);
-        return new HttpProductCatalog(client, executor, new ResilienceSettings(maxConcurrentCalls, circuitBreaker));
+        return new HttpProductCatalog(
+                client, executor, new ResilienceSettings(maxConcurrentCalls, Duration.ofMillis(10), circuitBreaker));
     }
 
     @Test
@@ -208,6 +211,43 @@ class HttpProductCatalogTest {
         assertThat(catalog.findProduct(id("2")).join())
                 .isEqualTo(new ProductLookup.Unavailable(UnavailableReason.CONCURRENCY_LIMIT));
         assertThat(slow.join()).isInstanceOf(ProductLookup.Found.class);
+    }
+
+    @Test
+    void retriesOnceWhenTheConnectionFails() {
+        upstream.stubFor(get("/product/2")
+                .inScenario("flaky")
+                .whenScenarioStateIs(STARTED)
+                .willReturn(aResponse().withFault(Fault.CONNECTION_RESET_BY_PEER))
+                .willSetStateTo("recovered"));
+        upstream.stubFor(get("/product/2")
+                .inScenario("flaky")
+                .whenScenarioStateIs("recovered")
+                .willReturn(okJson("{\"id\":\"2\",\"name\":\"Dress\",\"price\":19.99,\"availability\":true}")));
+
+        assertThat(catalog.findProduct(id("2")).join()).isInstanceOf(ProductLookup.Found.class);
+        assertThat(upstream.findAll(getRequestedFor(urlEqualTo("/product/2")))).hasSize(2);
+    }
+
+    @Test
+    void retriesAFailedConnectionOnlyOnce() {
+        upstream.stubFor(get("/product/2").willReturn(aResponse().withFault(Fault.CONNECTION_RESET_BY_PEER)));
+
+        assertThat(catalog.findProduct(id("2")).join())
+                .isEqualTo(new ProductLookup.Unavailable(UnavailableReason.CONNECTION_ERROR));
+        assertThat(upstream.findAll(getRequestedFor(urlEqualTo("/product/2")))).hasSize(2);
+    }
+
+    @Test
+    void neverRetriesATimeout() {
+        upstream.stubFor(get("/product/1000")
+                .willReturn(okJson("{\"id\":\"1000\",\"name\":\"Coat\",\"price\":89.99,\"availability\":true}")
+                        .withFixedDelay(1_500)));
+
+        assertThat(catalog.findProduct(id("1000")).join())
+                .isEqualTo(new ProductLookup.Unavailable(UnavailableReason.TIMEOUT));
+        assertThat(upstream.findAll(getRequestedFor(urlEqualTo("/product/1000"))))
+                .hasSize(1);
     }
 
     private static ProductId id(String value) {

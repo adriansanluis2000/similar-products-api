@@ -24,6 +24,7 @@ class SimilarProductsPropertiesTest {
                     "similar-products.cache.similar-ids.not-found=5m",
                     "similar-products.cache.similar-ids.refresh=5m",
                     "similar-products.upstream.max-concurrent-calls=100",
+                    "similar-products.upstream.retry-backoff=100ms",
                     "similar-products.upstream.circuit-breaker.failure-rate-threshold=50",
                     "similar-products.upstream.circuit-breaker.minimum-number-of-calls=20",
                     "similar-products.upstream.circuit-breaker.sliding-window=10s",
@@ -49,6 +50,7 @@ class SimilarProductsPropertiesTest {
                 "similar-products.cache.products.unavailable=-1s",
                 "similar-products.cache.similar-ids.refresh=",
                 "similar-products.upstream.max-concurrent-calls=0",
+                "similar-products.upstream.retry-backoff=0ms",
                 "similar-products.upstream.circuit-breaker.failure-rate-threshold=101",
                 "similar-products.upstream.circuit-breaker.sliding-window=500ms"
             })

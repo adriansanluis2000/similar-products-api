@@ -12,3 +12,4 @@ Decisions are recorded as described in [ADR 0001](0001-record-architecture-decis
 | [0006](0006-time-budget-and-partial-results.md) | Time budget per request and partial results | Accepted |
 | [0007](0007-cache-strategy.md) | Cache strategy | Accepted |
 | [0008](0008-upstream-resilience.md) | Circuit breaker and concurrency limit towards the existing APIs | Accepted |
+| [0009](0009-retry-on-connection-errors.md) | Retry once on connection errors | Accepted |

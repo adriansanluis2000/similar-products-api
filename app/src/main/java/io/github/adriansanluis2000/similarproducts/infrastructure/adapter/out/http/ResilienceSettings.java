@@ -12,9 +12,12 @@ import org.hibernate.validator.constraints.time.DurationMin;
  * Protection of the existing APIs. See ADR 0008.
  *
  * @param maxConcurrentCalls calls to the existing APIs allowed at the same time; more are rejected at once
+ * @param retryBackoff average wait before retrying a call that failed to connect, with random jitter of half of it
  */
 public record ResilienceSettings(
-        @Positive int maxConcurrentCalls, @NotNull @Valid CircuitBreaker circuitBreaker) {
+        @Positive int maxConcurrentCalls,
+        @NotNull @DurationMin(millis = 1) Duration retryBackoff,
+        @NotNull @Valid CircuitBreaker circuitBreaker) {
 
     /**
      * Opens when the existing APIs fail too often, and lets a few calls through after a while to check if they are

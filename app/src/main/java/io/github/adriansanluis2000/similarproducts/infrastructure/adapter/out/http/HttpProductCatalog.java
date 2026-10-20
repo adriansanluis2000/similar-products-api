@@ -12,6 +12,9 @@ import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig.SlidingWindowType;
+import io.github.resilience4j.core.IntervalFunction;
+import io.github.resilience4j.retry.Retry;
+import io.github.resilience4j.retry.RetryConfig;
 import java.net.SocketTimeoutException;
 import java.net.http.HttpConnectTimeoutException;
 import java.net.http.HttpTimeoutException;
@@ -31,7 +34,7 @@ import org.springframework.web.client.RestClientResponseException;
 /**
  * Reads products from the existing APIs and translates HTTP outcomes into the catalog vocabulary. Each call blocks a
  * virtual thread of the application task executor, so many calls can be waiting at once. Calls go through a circuit
- * breaker and a concurrency limit (see ADR 0008).
+ * breaker and a concurrency limit (see ADR 0008), and are retried once if they fail to connect (see ADR 0009).
  */
 public class HttpProductCatalog implements ProductCatalog {
 
@@ -41,6 +44,7 @@ public class HttpProductCatalog implements ProductCatalog {
     private final AsyncTaskExecutor executor;
     private final CircuitBreaker circuitBreaker;
     private final Bulkhead bulkhead;
+    private final Retry retry;
 
     public HttpProductCatalog(ExistingProductsClient client, AsyncTaskExecutor executor, ResilienceSettings settings) {
         this.client = client;
@@ -51,6 +55,13 @@ public class HttpProductCatalog implements ProductCatalog {
                 BulkheadConfig.custom()
                         .maxConcurrentCalls(settings.maxConcurrentCalls())
                         .maxWaitDuration(Duration.ZERO)
+                        .build());
+        this.retry = Retry.of(
+                "products",
+                RetryConfig.custom()
+                        .maxAttempts(2)
+                        .intervalFunction(IntervalFunction.ofRandomized(settings.retryBackoff(), 0.5))
+                        .retryOnException(HttpProductCatalog::isConnectionError)
                         .build());
     }
 
@@ -89,8 +100,20 @@ public class HttpProductCatalog implements ProductCatalog {
         }
     }
 
+    /** Each attempt goes through the circuit breaker and the concurrency limit, so a retry is also guarded. */
     private <T> T protect(Supplier<T> call) {
-        return circuitBreaker.executeSupplier(Bulkhead.decorateSupplier(bulkhead, call));
+        return Retry.decorateSupplier(
+                        retry,
+                        CircuitBreaker.decorateSupplier(circuitBreaker, Bulkhead.decorateSupplier(bulkhead, call)))
+                .get();
+    }
+
+    /**
+     * Only a failure to connect is retried: the request most likely never reached the upstream. A timeout is never
+     * retried, as it would double the wait on an upstream that is already slow.
+     */
+    private static boolean isConnectionError(Throwable e) {
+        return e instanceof ResourceAccessException access && !isTimeout(access.getMostSpecificCause());
     }
 
     /**
@@ -118,9 +141,7 @@ public class HttpProductCatalog implements ProductCatalog {
         return switch (e) {
             case RestClientResponseException _ -> UnavailableReason.UPSTREAM_ERROR;
             case ResourceAccessException access ->
-                isTimeout(access.getMostSpecificCause())
-                        ? UnavailableReason.TIMEOUT
-                        : UnavailableReason.CONNECTION_ERROR;
+                isConnectionError(access) ? UnavailableReason.CONNECTION_ERROR : UnavailableReason.TIMEOUT;
             case CallNotPermittedException _ -> UnavailableReason.CIRCUIT_OPEN;
             case BulkheadFullException _ -> UnavailableReason.CONCURRENCY_LIMIT;
             default -> UnavailableReason.INVALID_RESPONSE;

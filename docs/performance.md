@@ -127,3 +127,19 @@ Calls to the existing APIs go through a circuit breaker and a limit of 100 concu
 
 - **No change under the load test, as intended.** The broken products (5, 6 and 10000) reach the upstream only once every few seconds thanks to the negative cache, far from the 20 calls in 10 s the circuit needs to open, and the cache keeps concurrent calls well below the limit. The circuit breaker must not trip because of one bad product, and it does not.
 - What these guards are for, an upstream that is down as a whole, does not happen in the load test. Their behaviour is covered by tests and by an outage experiment after the error mapping below.
+
+## 5. Retry on connection errors
+
+Calls that fail to connect are retried once, after a short random wait. Timeouts are never retried. See [ADR 0009](adr/0009-retry-on-connection-errors.md).
+
+| Scenario | Requests | Throughput | p50 | p95 | p99 | Max | Errors | Products returned |
+|---|---:|---:|---:|---:|---:|---:|---:|---|
+| normal | 3946 | 395 req/s | 7 ms | 209 ms | 263 ms | 277 ms | 0.0 % | 2, 3, 4 |
+| notFound | 4000 | 400 req/s | 7 ms | 40 ms | 66 ms | 67 ms | 0.0 % | 1, 2 |
+| error | 4000 | 400 req/s | 8 ms | 55 ms | 62 ms | 63 ms | 0.0 % | 1, 2 |
+| slow | 2600 | 260 req/s | 10 ms | 1048 ms | 1048 ms | 1049 ms | 0.0 % | 3, 100, 1000 |
+| verySlow | 2400 | 240 req/s | 9 ms | 1045 ms | 1047 ms | 1048 ms | 0.0 % | 100, 1000 |
+
+![Grafana dashboard of the retry run](performance/5-retry.png)
+
+- **No change, as expected.** Connection failures were rare even before the cache (0.2 % of one scenario in the parallel run) and have not shown up since. The retry is a safety net for them, covered by tests that reset the connection, and it never adds waits to slow products.

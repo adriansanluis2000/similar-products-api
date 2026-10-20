@@ -32,6 +32,7 @@ similar-products:
       refresh: 5m
   upstream:
     max-concurrent-calls: 100
+    retry-backoff: 100ms
     circuit-breaker:
       failure-rate-threshold: 50
       minimum-number-of-calls: 20
