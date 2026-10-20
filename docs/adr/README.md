@@ -7,7 +7,7 @@ Decisions are recorded as described in [ADR 0001](0001-record-architecture-decis
 | [0001](0001-record-architecture-decisions.md) | Record architecture decisions | Accepted |
 | [0002](0002-generate-api-from-openapi-contract.md) | Generate the API from the OpenAPI contract | Accepted |
 | [0003](0003-hexagonal-architecture.md) | Hexagonal architecture | Accepted |
-| [0004](0004-similar-products-business-rules.md) | Business rules for similar products | Accepted |
+| [0004](0004-similar-products-business-rules.md) | Business rules for similar products | Accepted, refined by [0010](0010-map-upstream-failures-to-gateway-errors.md) |
 | [0005](0005-virtual-threads-over-webflux.md) | Virtual threads over WebFlux | Accepted |
 | [0006](0006-time-budget-and-partial-results.md) | Time budget per request and partial results | Accepted |
 | [0007](0007-cache-strategy.md) | Cache strategy | Accepted |

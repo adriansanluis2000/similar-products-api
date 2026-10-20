@@ -1,6 +1,6 @@
 # 0004. Business rules for similar products
 
-- **Status:** Accepted
+- **Status:** Accepted. The status codes for failures to get the similar ids are set by [ADR 0010](0010-map-upstream-failures-to-gateway-errors.md).
 - **Date:** 2026-10-19
 
 ## Context
