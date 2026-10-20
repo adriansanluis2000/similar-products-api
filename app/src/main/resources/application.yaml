@@ -13,12 +13,24 @@ spring:
   mvc:
     problemdetails:
       enabled: true
+  ai:
+    mcp:
+      server:
+        # Both follow similar-products.mcp.enabled, so a single property turns the MCP server on.
+        enabled: ${similar-products.mcp.enabled}
+        annotation-scanner:
+          enabled: ${similar-products.mcp.enabled}
+        name: similar-products
+        # Explicit: without it, Spring AI 2.0 falls back to the older SSE transport.
+        protocol: STREAMABLE
 
 server:
   port: 5000
 
 similar-products:
   budget: 1s
+  mcp:
+    enabled: false
   cache:
     maximum-size: 10000
     products:

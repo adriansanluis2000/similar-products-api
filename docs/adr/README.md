@@ -16,3 +16,4 @@ Decisions are recorded as described in [ADR 0001](0001-record-architecture-decis
 | [0010](0010-map-upstream-failures-to-gateway-errors.md) | Map upstream failures to 502, 503 and 504 | Accepted |
 | [0011](0011-container-image.md) | Container image | Accepted |
 | [0012](0012-observability.md) | Observability | Accepted |
+| [0013](0013-mcp-adapter.md) | Similar products as an MCP tool | Accepted |

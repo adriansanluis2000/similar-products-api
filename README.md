@@ -68,6 +68,7 @@ The reasons behind these rules are in [ADR 0004](docs/adr/0004-similar-products-
 | `spring.http.serviceclient.products.base-url` | `http://localhost:3001` | Base URL of the existing product APIs |
 | `spring.http.serviceclient.products.connect-timeout` | `1s` | Time to establish a connection to them |
 | `spring.http.serviceclient.products.read-timeout` | `6s` | Time to wait for each of their responses. Longer than the budget, so slow products can still reach the cache |
+| `similar-products.mcp.enabled` | `false` | Serves the similar products as a tool for AI agents over MCP at `/mcp` ([ADR 0013](docs/adr/0013-mcp-adapter.md)) |
 | `similar-products.budget` | `1s` | Maximum time to answer a request; products that take longer are left out ([ADR 0006](docs/adr/0006-time-budget-and-partial-results.md)) |
 | `similar-products.cache.maximum-size` | `10000` | Entries kept per cache ([ADR 0007](docs/adr/0007-cache-strategy.md)) |
 | `similar-products.cache.products.found` | `60s` | How long a product detail is kept |
