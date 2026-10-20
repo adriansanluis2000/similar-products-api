@@ -24,7 +24,7 @@ jobs:
           cache: maven
       - run: ./mvnw -B -ntp verify
 
-  # Publishes the image of a release tag (v1.2.3 is tagged 1.2.3 and 1.2), once the build has passed.
+  # Publishes the image of a release tag (v1.2.3 is tagged 1.2.3, 1.2 and latest), once the build has passed.
   image:
     if: github.ref_type == 'tag'
     needs: build
