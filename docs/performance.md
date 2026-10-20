@@ -184,6 +184,22 @@ No change under the load test, where the similar ids never fail. The difference 
 - **Cached products are served throughout.** Product 1 answers 200 for the whole outage, from the cache.
 - **Recovery takes up to the open wait.** The trial calls at second 20 failed because simulado was still paused, so the circuit opened again and only closed at second 34, 9 s after simulado came back. A shorter wait recovers sooner, at the cost of more trial calls against a sick upstream.
 
+## Final: v1.2.0 in Docker
+
+The released image, started with `docker compose up -d simulado influxdb grafana app` and restarted right before the run, so the cache and the JVM start cold. This is how the statement's test runs against the delivery. Measured on the same machine, with the application in a container limited by Docker Desktop's VM instead of on the host.
+
+| Scenario | Requests | Throughput | p50 | p95 | p99 | Max | Errors | Products returned |
+|---|---:|---:|---:|---:|---:|---:|---:|---|
+| normal | 4000 | 400 req/s | 4 ms | 38 ms | 235 ms | 244 ms | 0.0 % | 2, 3, 4 |
+| notFound | 4000 | 400 req/s | 3 ms | 17 ms | 26 ms | 29 ms | 0.0 % | 1, 2 |
+| error | 3999 | 400 req/s | 3 ms | 14 ms | 24 ms | 25 ms | 0.0 % | 1, 2 |
+| slow | 2600 | 260 req/s | 4 ms | 1009 ms | 1012 ms | 1013 ms | 0.0 % | 3, 100, 1000 |
+| verySlow | 2400 | 240 req/s | 5 ms | 1017 ms | 1026 ms | 1027 ms | 0.0 % | 100, 1000 |
+
+![Grafana dashboard of the final run in Docker](performance/7-docker.png)
+
+No errors and no warnings in the application's logs. The p95 of `slow` and `verySlow` is the time budget, spent by the requests that arrive while the slow products are fetched for the first time (see stage 3).
+
 ## Evolution
 
 p95 per scenario at each stage, and what `slow` and `verySlow` return:
@@ -197,5 +213,6 @@ p95 per scenario at each stage, and what `slow` and `verySlow` return:
 | 4. Circuit breaker and limit | 189 ms | 46 ms | 54 ms | 1041 ms | 1032 ms | 3, 100, 1000 | 100, 1000 |
 | 5. Retry | 209 ms | 40 ms | 55 ms | 1048 ms | 1045 ms | 3, 100, 1000 | 100, 1000 |
 | 6. Gateway errors | 194 ms | 43 ms | 42 ms | 1042 ms | 1043 ms | 3, 100, 1000 | 100, 1000 |
+| Final, in Docker (v1.2.0) | 38 ms | 17 ms | 14 ms | 1009 ms | 1017 ms | 3, 100, 1000 | 100, 1000 |
 
-From the baseline to the final stage, the p50 of every scenario is under 15 ms, throughput reaches the ceiling of the load test in the fast scenarios, no request waits more than about a second, and the slow products 100 and 1000 are returned once they have arrived. Product 10000, which takes 50 s, is never returned.
+From the baseline to the final release, the p50 of every scenario drops under 15 ms, throughput reaches the ceiling of the load test in the fast scenarios, no request waits more than about a second, and the slow products 100 and 1000 are returned once they have arrived. Product 10000, which takes 50 s, is never returned.
