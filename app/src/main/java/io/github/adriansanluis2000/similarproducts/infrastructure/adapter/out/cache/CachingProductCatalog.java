@@ -8,6 +8,9 @@ import com.github.benmanes.caffeine.cache.Ticker;
 import io.github.adriansanluis2000.similarproducts.application.port.out.ProductCatalog;
 import io.github.adriansanluis2000.similarproducts.domain.ProductLookup;
 import io.github.adriansanluis2000.similarproducts.domain.model.ProductId;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.binder.MeterBinder;
+import io.micrometer.core.instrument.binder.cache.CaffeineCacheMetrics;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
@@ -24,8 +27,10 @@ import java.util.concurrent.ForkJoinPool;
  *   <li>Each answer is kept for a time that depends on what it says, and refreshed in the background while it is
  *       still served.
  * </ul>
+ *
+ * <p>Hit, miss, load and eviction statistics are published as the {@code cache.*} metrics of each cache.
  */
-public class CachingProductCatalog implements ProductCatalog {
+public class CachingProductCatalog implements ProductCatalog, MeterBinder {
 
     private final AsyncLoadingCache<ProductId, Optional<List<ProductId>>> similarIds;
     private final AsyncLoadingCache<ProductId, ProductLookup> products;
@@ -43,6 +48,7 @@ public class CachingProductCatalog implements ProductCatalog {
                 .refreshAfterWrite(similarIdsSettings.refresh())
                 .ticker(ticker)
                 .executor(executor)
+                .recordStats()
                 .buildAsync((id, _) -> delegate.findSimilarIds(id));
         var productSettings = settings.products();
         products = Caffeine.newBuilder()
@@ -51,7 +57,14 @@ public class CachingProductCatalog implements ProductCatalog {
                 .refreshAfterWrite(productSettings.refresh())
                 .ticker(ticker)
                 .executor(executor)
+                .recordStats()
                 .buildAsync(new ProductLoader(delegate));
+    }
+
+    @Override
+    public void bindTo(MeterRegistry registry) {
+        CaffeineCacheMetrics.monitor(registry, similarIds, "similar-ids");
+        CaffeineCacheMetrics.monitor(registry, products, "products");
     }
 
     @Override

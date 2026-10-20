@@ -86,6 +86,23 @@ The reasons behind these rules are in [ADR 0004](docs/adr/0004-similar-products-
 
 Any property can be overridden with an environment variable, for example `SPRING_HTTP_SERVICECLIENT_PRODUCTS_BASEURL`.
 
+## Observability
+
+| Endpoint | Content |
+|---|---|
+| `/actuator/health/liveness` | Whether the process is alive, for restarts. Also used by the image's `HEALTHCHECK` |
+| `/actuator/health/readiness` | Whether it can take traffic |
+| `/actuator/prometheus` | Metrics in Prometheus format |
+
+Besides the standard JVM and HTTP metrics (`http_server_requests_*` for this API, `http_client_requests_*` for the calls to the existing APIs), it publishes:
+
+| Metric | Meaning |
+|---|---|
+| `cache_gets_total`, `cache_puts_total`, `cache_evictions_total` (`cache` = `products`, `similar-ids`) | Hits and misses of each cache, and so its hit ratio |
+| `resilience4j_circuitbreaker_state`, `resilience4j_circuitbreaker_calls_*` | State of the circuit breaker and outcome of the calls it guards |
+| `resilience4j_bulkhead_available_concurrent_calls` | Room left under the concurrency limit |
+| `resilience4j_retry_calls_total` | Calls that succeeded or failed with and without a retry |
+
 ## Running the test infrastructure
 
 Requires Docker with Compose.

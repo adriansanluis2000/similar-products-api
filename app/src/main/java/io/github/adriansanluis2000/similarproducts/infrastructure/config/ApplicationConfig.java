@@ -9,6 +9,7 @@ import io.github.adriansanluis2000.similarproducts.infrastructure.adapter.out.ht
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.web.service.registry.ImportHttpServices;
 
@@ -18,12 +19,18 @@ import org.springframework.web.service.registry.ImportHttpServices;
 @ImportHttpServices(group = "products", types = ExistingProductsClient.class)
 class ApplicationConfig {
 
-    /** The existing APIs over HTTP, protected by a circuit breaker and a concurrency limit, behind a cache. */
+    /** The existing APIs over HTTP, protected by a circuit breaker, a concurrency limit and a retry. */
     @Bean
-    ProductCatalog productCatalog(
+    HttpProductCatalog httpProductCatalog(
             ExistingProductsClient client, AsyncTaskExecutor executor, SimilarProductsProperties properties) {
-        return new CachingProductCatalog(
-                new HttpProductCatalog(client, executor, properties.upstream()), properties.cache());
+        return new HttpProductCatalog(client, executor, properties.upstream());
+    }
+
+    /** The catalog the use case sees: the HTTP one, behind a cache. */
+    @Bean
+    @Primary
+    CachingProductCatalog productCatalog(HttpProductCatalog httpProductCatalog, SimilarProductsProperties properties) {
+        return new CachingProductCatalog(httpProductCatalog, properties.cache());
     }
 
     @Bean

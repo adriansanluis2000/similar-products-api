@@ -8,13 +8,21 @@ import io.github.adriansanluis2000.similarproducts.domain.model.ProductId;
 import io.github.resilience4j.bulkhead.Bulkhead;
 import io.github.resilience4j.bulkhead.BulkheadConfig;
 import io.github.resilience4j.bulkhead.BulkheadFullException;
+import io.github.resilience4j.bulkhead.BulkheadRegistry;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig.SlidingWindowType;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.github.resilience4j.core.IntervalFunction;
+import io.github.resilience4j.micrometer.tagged.TaggedBulkheadMetrics;
+import io.github.resilience4j.micrometer.tagged.TaggedCircuitBreakerMetrics;
+import io.github.resilience4j.micrometer.tagged.TaggedRetryMetrics;
 import io.github.resilience4j.retry.Retry;
 import io.github.resilience4j.retry.RetryConfig;
+import io.github.resilience4j.retry.RetryRegistry;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.binder.MeterBinder;
 import java.net.SocketTimeoutException;
 import java.net.http.HttpConnectTimeoutException;
 import java.net.http.HttpTimeoutException;
@@ -34,14 +42,18 @@ import org.springframework.web.client.RestClientResponseException;
 /**
  * Reads products from the existing APIs and translates HTTP outcomes into the catalog vocabulary. Each call blocks a
  * virtual thread of the application task executor, so many calls can be waiting at once. Calls go through a circuit
- * breaker and a concurrency limit (see ADR 0008), and are retried once if they fail to connect (see ADR 0009).
+ * breaker and a concurrency limit (see ADR 0008), and are retried once if they fail to connect (see ADR 0009). The
+ * state of these guards is published as the {@code resilience4j.*} metrics.
  */
-public class HttpProductCatalog implements ProductCatalog {
+public class HttpProductCatalog implements ProductCatalog, MeterBinder {
 
     private static final Logger log = LoggerFactory.getLogger(HttpProductCatalog.class);
 
     private final ExistingProductsClient client;
     private final AsyncTaskExecutor executor;
+    private final CircuitBreakerRegistry circuitBreakers;
+    private final BulkheadRegistry bulkheads;
+    private final RetryRegistry retries;
     private final CircuitBreaker circuitBreaker;
     private final Bulkhead bulkhead;
     private final Retry retry;
@@ -50,21 +62,27 @@ public class HttpProductCatalog implements ProductCatalog {
     public HttpProductCatalog(ExistingProductsClient client, AsyncTaskExecutor executor, ResilienceSettings settings) {
         this.client = client;
         this.executor = executor;
-        this.circuitBreaker = circuitBreaker(settings.circuitBreaker());
+        this.circuitBreakers = CircuitBreakerRegistry.of(circuitBreakerConfig(settings.circuitBreaker()));
+        this.bulkheads = BulkheadRegistry.of(BulkheadConfig.custom()
+                .maxConcurrentCalls(settings.maxConcurrentCalls())
+                .maxWaitDuration(Duration.ZERO)
+                .build());
+        this.retries = RetryRegistry.of(RetryConfig.custom()
+                .maxAttempts(2)
+                .intervalFunction(IntervalFunction.ofRandomized(settings.retryBackoff(), 0.5))
+                .retryOnException(HttpProductCatalog::isConnectionError)
+                .build());
+        this.circuitBreaker = circuitBreakers.circuitBreaker("products");
+        this.bulkhead = bulkheads.bulkhead("products");
+        this.retry = retries.retry("products");
         this.waitInOpenState = settings.circuitBreaker().waitInOpenState();
-        this.bulkhead = Bulkhead.of(
-                "products",
-                BulkheadConfig.custom()
-                        .maxConcurrentCalls(settings.maxConcurrentCalls())
-                        .maxWaitDuration(Duration.ZERO)
-                        .build());
-        this.retry = Retry.of(
-                "products",
-                RetryConfig.custom()
-                        .maxAttempts(2)
-                        .intervalFunction(IntervalFunction.ofRandomized(settings.retryBackoff(), 0.5))
-                        .retryOnException(HttpProductCatalog::isConnectionError)
-                        .build());
+    }
+
+    @Override
+    public void bindTo(MeterRegistry registry) {
+        TaggedCircuitBreakerMetrics.ofCircuitBreakerRegistry(circuitBreakers).bindTo(registry);
+        TaggedBulkheadMetrics.ofBulkheadRegistry(bulkheads).bindTo(registry);
+        TaggedRetryMetrics.ofRetryRegistry(retries).bindTo(registry);
     }
 
     @Override
@@ -135,20 +153,17 @@ public class HttpProductCatalog implements ProductCatalog {
      * Only server errors and I/O failures mean the existing APIs are unhealthy. A 404 is a valid answer, and rejections
      * of the concurrency limit say nothing about the upstream.
      */
-    private static CircuitBreaker circuitBreaker(ResilienceSettings.CircuitBreaker settings) {
-        return CircuitBreaker.of(
-                "products",
-                CircuitBreakerConfig.custom()
-                        .slidingWindow(
-                                (int) settings.slidingWindow().toSeconds(),
-                                settings.minimumNumberOfCalls(),
-                                SlidingWindowType.TIME_BASED)
-                        .failureRateThreshold(settings.failureRateThreshold())
-                        .waitDurationInOpenState(settings.waitInOpenState())
-                        .recordException(
-                                e -> e instanceof HttpServerErrorException || e instanceof ResourceAccessException)
-                        .ignoreExceptions(BulkheadFullException.class)
-                        .build());
+    private static CircuitBreakerConfig circuitBreakerConfig(ResilienceSettings.CircuitBreaker settings) {
+        return CircuitBreakerConfig.custom()
+                .slidingWindow(
+                        (int) settings.slidingWindow().toSeconds(),
+                        settings.minimumNumberOfCalls(),
+                        SlidingWindowType.TIME_BASED)
+                .failureRateThreshold(settings.failureRateThreshold())
+                .waitDurationInOpenState(settings.waitInOpenState())
+                .recordException(e -> e instanceof HttpServerErrorException || e instanceof ResourceAccessException)
+                .ignoreExceptions(BulkheadFullException.class)
+                .build();
     }
 
     /** Anything that is not an HTTP error, an I/O failure or a rejection means the body could not be read. */

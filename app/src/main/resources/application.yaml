@@ -43,3 +43,9 @@ logging:
   level:
     # Caffeine logs every failed load or refresh with a stack trace. Those failures are expected and handled here.
     com.github.benmanes.caffeine: error
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, prometheus
