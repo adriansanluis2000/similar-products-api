@@ -7,5 +7,7 @@ services:
       - "5000:5000"
     environment:
       SPRING_HTTP_SERVICECLIENT_PRODUCTS_BASEURL: http://simulado:80
+      # The MCP server for AI agents stays off unless SIMILAR_PRODUCTS_MCP_ENABLED=true is set when starting.
+      SIMILAR_PRODUCTS_MCP_ENABLED: ${SIMILAR_PRODUCTS_MCP_ENABLED:-false}
     depends_on:
       - simulado

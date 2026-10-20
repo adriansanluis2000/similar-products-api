@@ -61,6 +61,43 @@ The API listens on <http://localhost:5000>, with its health check at <http://loc
 
 The reasons behind these rules are in [ADR 0004](docs/adr/0004-similar-products-business-rules.md) and [ADR 0010](docs/adr/0010-map-upstream-failures-to-gateway-errors.md).
 
+## Using it from AI agents (MCP)
+
+The service can also serve the similar products as a tool for AI agents, over the [Model Context Protocol](https://modelcontextprotocol.io). It is a second entry point to the same use case, with the same rules, and it is off by default ([ADR 0013](docs/adr/0013-mcp-adapter.md)).
+
+Turn it on with `similar-products.mcp.enabled`:
+
+```bash
+SIMILAR_PRODUCTS_MCP_ENABLED=true docker compose up -d simulado influxdb grafana app
+```
+
+Or, running locally from `app/`:
+
+```bash
+./mvnw spring-boot:run -Dspring-boot.run.arguments=--similar-products.mcp.enabled=true
+```
+
+The server listens at <http://localhost:5000/mcp> (streamable HTTP) and offers one tool, `get_similar_products(productId)`. To use it from Claude Code:
+
+```bash
+claude mcp add --transport http similar-products http://localhost:5000/mcp
+```
+
+Then ask, for example, *"Product 1 is out of stock. Which similar products could I offer instead?"*. The agent calls the tool and gets the similar products, most similar first, as structured content:
+
+```json
+{
+  "productId": "1",
+  "similarProducts": [
+    {"id": "2", "name": "Dress", "price": 19.99, "available": true},
+    {"id": "3", "name": "Blazer", "price": 29.99, "available": false},
+    {"id": "4", "name": "Boots", "price": 39.99, "available": true}
+  ]
+}
+```
+
+Any other MCP client works the same way with that URL, for example the [MCP Inspector](https://github.com/modelcontextprotocol/inspector) (`npx @modelcontextprotocol/inspector`). The endpoint has no authentication: keep it off wherever the service is reachable from outside.
+
 ## Configuration
 
 | Property | Default | Description |
@@ -147,6 +184,7 @@ Results are shown in Grafana at <http://localhost:3000/d/Le2Ku9NMk/k6-performanc
 ## Troubleshooting
 
 - **Port 5000 already in use on macOS.** Since macOS Monterey, the AirPlay Receiver listens on port 5000. Turn it off in *System Settings → General → AirDrop & Handoff → AirPlay Receiver*.
+- **Antivirus that inspects web traffic** (such as Norton Safe Web) can break the image build, with certificate (PKIX) errors when Maven downloads dependencies, and can rewrite responses on the loopback address, which MCP clients then fail to read. Exclude `repo.maven.apache.org` and `127.0.0.1` from the inspection (some products do not accept `localhost`), and use `127.0.0.1` in the MCP URL.
 - **Mocks or dashboards do not load.** Docker must be able to mount the `shared` folder. Check *Settings → Resources → File sharing* in Docker Desktop.
 
 ## License
